@@ -2,6 +2,7 @@
  * MCP Tool Definitions for TapKit
  */
 
+import sharp from 'sharp';
 import { TapKitClient, TapKitAPIError } from './tapkit-client.js';
 
 // Tool input schemas (JSON Schema format)
@@ -312,7 +313,8 @@ export async function executeTool(
         if (phone.width && phone.height) {
           client.setScreenDimensions(phone.width, phone.height);
         }
-        const dims = phone.width && phone.height ? ` (${phone.width}x${phone.height})` : '';
+        const scaling = client.getScaling();
+        const dims = scaling ? ` (${scaling.scaledWidth}x${scaling.scaledHeight})` : '';
         return {
           content: [{ type: 'text', text: `Selected phone: ${phone.name}${dims}` }]
         };
@@ -320,10 +322,31 @@ export async function executeTool(
 
       case 'screenshot': {
         const imageBuffer = await client.screenshot();
-        // Return as base64 image
-        const base64 = imageBuffer.toString('base64');
+        const scaling = client.getScaling();
+
+        let resizedBuffer: Buffer;
+        let reportW: number;
+        let reportH: number;
+
+        if (scaling) {
+          // Resize to the scaled coordinate space so the model sees pixels 1:1 with tap coords
+          resizedBuffer = await sharp(imageBuffer)
+            .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' })
+            .png()
+            .toBuffer();
+          reportW = scaling.scaledWidth;
+          reportH = scaling.scaledHeight;
+        } else {
+          resizedBuffer = imageBuffer;
+          const meta = await sharp(imageBuffer).metadata();
+          reportW = meta.width ?? 0;
+          reportH = meta.height ?? 0;
+        }
+
+        const base64 = resizedBuffer.toString('base64');
         return {
           content: [
+            { type: 'text', text: `Screenshot: ${reportW}x${reportH}. Coordinates for tap/swipe map 1:1 with image pixels.` },
             {
               type: 'image',
               data: base64,
@@ -335,7 +358,8 @@ export async function executeTool(
 
       case 'tap': {
         const { x, y } = args as { x: number; y: number };
-        await client.tap(x, y);
+        const native = client.toNative(x, y);
+        await client.tap(native.x, native.y);
         return {
           content: [{ type: 'text', text: `Tapped at (${x}, ${y})` }]
         };
@@ -363,7 +387,9 @@ export async function executeTool(
           end_x: number;
           end_y: number;
         };
-        await client.swipe(start_x, start_y, end_x, end_y);
+        const nStart = client.toNative(start_x, start_y);
+        const nEnd = client.toNative(end_x, end_y);
+        await client.swipe(nStart.x, nStart.y, nEnd.x, nEnd.y);
         return {
           content: [{ type: 'text', text: `Swiped from (${start_x}, ${start_y}) to (${end_x}, ${end_y})` }]
         };
@@ -374,10 +400,10 @@ export async function executeTool(
           direction: 'up' | 'down' | 'left' | 'right';
           distance?: number;
         };
-        // Calculate scroll coordinates based on direction
-        const dims = client.getScreenDimensions();
-        const centerX = dims ? Math.round(dims.width / 2) : 200;
-        const centerY = dims ? Math.round(dims.height / 2) : 400;
+        // Calculate scroll in scaled space, then convert to native for execution
+        const scaling = client.getScaling();
+        const centerX = scaling ? Math.round(scaling.scaledWidth / 2) : 200;
+        const centerY = scaling ? Math.round(scaling.scaledHeight / 2) : 400;
         let startX = centerX, startY = centerY, endX = centerX, endY = centerY;
 
         switch (direction) {
@@ -399,7 +425,9 @@ export async function executeTool(
             break;
         }
 
-        await client.scroll(startX, startY, endX, endY);
+        const nStart = client.toNative(startX, startY);
+        const nEnd = client.toNative(endX, endY);
+        await client.scroll(nStart.x, nStart.y, nEnd.x, nEnd.y);
         return {
           content: [{ type: 'text', text: `Scrolled ${direction}` }]
         };
@@ -407,7 +435,8 @@ export async function executeTool(
 
       case 'double_tap': {
         const { x, y } = args as { x: number; y: number };
-        await client.doubleTap(x, y);
+        const native = client.toNative(x, y);
+        await client.doubleTap(native.x, native.y);
         return {
           content: [{ type: 'text', text: `Double tapped at (${x}, ${y})` }]
         };
@@ -415,7 +444,8 @@ export async function executeTool(
 
       case 'long_press': {
         const { x, y, duration } = args as { x: number; y: number; duration?: number };
-        await client.longPress(x, y, duration);
+        const native = client.toNative(x, y);
+        await client.longPress(native.x, native.y, duration);
         return {
           content: [{ type: 'text', text: `Long pressed at (${x}, ${y}) for ${duration || 1000}ms` }]
         };
@@ -491,8 +521,11 @@ export async function executeTool(
       case 'get_phone_info': {
         const phoneId = await client.getPhoneId();
         const info = await client.getPhoneInfo(phoneId);
+        const scaling = client.getScaling();
+        const w = scaling ? scaling.scaledWidth : info.width;
+        const h = scaling ? scaling.scaledHeight : info.height;
         return {
-          content: [{ type: 'text', text: `Screen: ${info.width}x${info.height}, Name: ${info.name}` }]
+          content: [{ type: 'text', text: `Screen: ${w}x${h}, Name: ${info.name}` }]
         };
       }
 

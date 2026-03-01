@@ -30,11 +30,20 @@ export interface TapKitError {
   message: string;
 }
 
+const MAX_LONG_EDGE = 1344;
+
+export interface ScreenScaling {
+  nativeWidth: number;
+  nativeHeight: number;
+  scaledWidth: number;
+  scaledHeight: number;
+  scaleFactor: number; // scaledWidth / nativeWidth — always <= 1
+}
+
 export class TapKitClient {
   private authToken: string;
   private phoneId: string | null = null;
-  private screenWidth: number | null = null;
-  private screenHeight: number | null = null;
+  private scaling: ScreenScaling | null = null;
 
   constructor(authToken: string) {
     this.authToken = authToken;
@@ -102,21 +111,38 @@ export class TapKitClient {
   }
 
   /**
-   * Store screen dimensions for the selected phone
+   * Compute and store screen scaling for a phone's native dimensions.
+   * Caps the longest edge at MAX_LONG_EDGE (1344px) so the model
+   * reasons in the same coordinate space as the image it sees.
    */
-  setScreenDimensions(width: number, height: number): void {
-    this.screenWidth = width;
-    this.screenHeight = height;
+  setScreenDimensions(nativeWidth: number, nativeHeight: number): void {
+    const longest = Math.max(nativeWidth, nativeHeight);
+    const scaleFactor = Math.min(1.0, MAX_LONG_EDGE / longest);
+    this.scaling = {
+      nativeWidth,
+      nativeHeight,
+      scaledWidth: Math.round(nativeWidth * scaleFactor),
+      scaledHeight: Math.round(nativeHeight * scaleFactor),
+      scaleFactor,
+    };
   }
 
   /**
-   * Get stored screen dimensions (null if not yet fetched)
+   * Get the current screen scaling (null if no phone selected yet)
    */
-  getScreenDimensions(): { width: number; height: number } | null {
-    if (this.screenWidth !== null && this.screenHeight !== null) {
-      return { width: this.screenWidth, height: this.screenHeight };
-    }
-    return null;
+  getScaling(): ScreenScaling | null {
+    return this.scaling;
+  }
+
+  /**
+   * Convert model coordinates (scaled space) to native phone coordinates.
+   */
+  toNative(x: number, y: number): { x: number; y: number } {
+    if (!this.scaling) return { x, y };
+    return {
+      x: Math.round(x / this.scaling.scaleFactor),
+      y: Math.round(y / this.scaling.scaleFactor),
+    };
   }
 
   /**
