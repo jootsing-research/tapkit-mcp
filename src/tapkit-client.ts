@@ -10,6 +10,14 @@ export interface Phone {
   name: string;
   unique_id: string;
   phone_number: string | null;
+  width?: number;
+  height?: number;
+}
+
+export interface PhoneInfo {
+  width: number;
+  height: number;
+  name: string;
 }
 
 export interface TapResult {
@@ -25,6 +33,8 @@ export interface TapKitError {
 export class TapKitClient {
   private authToken: string;
   private phoneId: string | null = null;
+  private screenWidth: number | null = null;
+  private screenHeight: number | null = null;
 
   constructor(authToken: string) {
     this.authToken = authToken;
@@ -92,6 +102,24 @@ export class TapKitClient {
   }
 
   /**
+   * Store screen dimensions for the selected phone
+   */
+  setScreenDimensions(width: number, height: number): void {
+    this.screenWidth = width;
+    this.screenHeight = height;
+  }
+
+  /**
+   * Get stored screen dimensions (null if not yet fetched)
+   */
+  getScreenDimensions(): { width: number; height: number } | null {
+    if (this.screenWidth !== null && this.screenHeight !== null) {
+      return { width: this.screenWidth, height: this.screenHeight };
+    }
+    return null;
+  }
+
+  /**
    * Get the current phone ID, auto-selecting if not set
    */
   async getPhoneId(): Promise<string> {
@@ -117,10 +145,30 @@ export class TapKitClient {
   }
 
   /**
-   * List all connected phones
+   * List all connected phones, enriched with screen dimensions
    */
   async listPhones(): Promise<Phone[]> {
-    return this.request<Phone[]>('GET', '/phones');
+    const phones = await this.request<Phone[]>('GET', '/phones');
+    // Fetch dimensions for each phone (same pattern as Python SDK)
+    await Promise.all(
+      phones.map(async (phone) => {
+        try {
+          const info = await this.getPhoneInfo(phone.id);
+          phone.width = info.width;
+          phone.height = info.height;
+        } catch {
+          // Dimensions unavailable — leave as undefined
+        }
+      })
+    );
+    return phones;
+  }
+
+  /**
+   * Get device info (screen dimensions) for a phone
+   */
+  async getPhoneInfo(phoneId: string): Promise<PhoneInfo> {
+    return this.request<PhoneInfo>('GET', `/phones/${phoneId}/info`);
   }
 
   /**

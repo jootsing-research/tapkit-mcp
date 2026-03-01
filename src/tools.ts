@@ -237,6 +237,43 @@ export const toolDefinitions = [
       required: ['shortcut_name']
     }
   },
+  {
+    name: 'open_app',
+    description: 'Open an app by name or bundle ID. Examples: "Safari", "com.apple.mobilesafari".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        app_name: {
+          type: 'string',
+          description: 'The app name (e.g. "Safari", "Settings") or bundle ID (e.g. "com.apple.mobilesafari")'
+        }
+      },
+      required: ['app_name']
+    }
+  },
+  {
+    name: 'open_url',
+    description: 'Open a URL on the device. Opens in the default handler for that URL scheme.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'The URL to open (e.g. "https://example.com", "maps://...")'
+        }
+      },
+      required: ['url']
+    }
+  },
+  {
+    name: 'get_phone_info',
+    description: 'Get screen dimensions and device info for the selected phone. Returns width, height, and name.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
 ];
 
 /**
@@ -272,8 +309,12 @@ export async function executeTool(
           };
         }
         client.setPhoneId(phone_id);
+        if (phone.width && phone.height) {
+          client.setScreenDimensions(phone.width, phone.height);
+        }
+        const dims = phone.width && phone.height ? ` (${phone.width}x${phone.height})` : '';
         return {
-          content: [{ type: 'text', text: `Selected phone: ${phone.name}` }]
+          content: [{ type: 'text', text: `Selected phone: ${phone.name}${dims}` }]
         };
       }
 
@@ -334,9 +375,9 @@ export async function executeTool(
           distance?: number;
         };
         // Calculate scroll coordinates based on direction
-        // Assuming screen center is around (200, 400) for iPhone
-        const centerX = 200;
-        const centerY = 400;
+        const dims = client.getScreenDimensions();
+        const centerX = dims ? Math.round(dims.width / 2) : 200;
+        const centerY = dims ? Math.round(dims.height / 2) : 400;
         let startX = centerX, startY = centerY, endX = centerX, endY = centerY;
 
         switch (direction) {
@@ -428,6 +469,30 @@ export async function executeTool(
         await client.runShortcut(shortcut_name);
         return {
           content: [{ type: 'text', text: `Ran shortcut: ${shortcut_name}` }]
+        };
+      }
+
+      case 'open_app': {
+        const { app_name } = args as { app_name: string };
+        await client.openApp(app_name);
+        return {
+          content: [{ type: 'text', text: `Opened app: ${app_name}` }]
+        };
+      }
+
+      case 'open_url': {
+        const { url } = args as { url: string };
+        await client.openUrl(url);
+        return {
+          content: [{ type: 'text', text: `Opened URL: ${url}` }]
+        };
+      }
+
+      case 'get_phone_info': {
+        const phoneId = await client.getPhoneId();
+        const info = await client.getPhoneInfo(phoneId);
+        return {
+          content: [{ type: 'text', text: `Screen: ${info.width}x${info.height}, Name: ${info.name}` }]
         };
       }
 
