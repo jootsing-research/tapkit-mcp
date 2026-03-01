@@ -285,7 +285,7 @@ export class TapKitClient {
    */
   async typeText(text: string): Promise<TapResult> {
     const phoneId = await this.getPhoneId();
-    return this.request<TapResult>('POST', `/phones/${phoneId}/type`, { text });
+    return this.request<TapResult>('POST', `/phones/${phoneId}/type`, { text, method: 'shortcut' });
   }
 
   /**
