@@ -277,48 +277,42 @@ export class TapKitClient {
   /**
    * Long press at coordinates
    */
-  async longPress(x: number, y: number, duration?: number): Promise<TapResult> {
+  async longPress(x: number, y: number, durationMs?: number): Promise<TapResult> {
     const phoneId = await this.getPhoneId();
     return this.request<TapResult>('POST', `/phones/${phoneId}/tap-and-hold`, {
       x,
       y,
-      duration: duration || 1000
+      duration_ms: durationMs || 1000
     });
   }
 
   /**
-   * Swipe/flick gesture
+   * Flick gesture at position in a direction
    */
-  async swipe(
-    startX: number,
-    startY: number,
-    endX: number,
-    endY: number
-  ): Promise<TapResult> {
+  async flick(x: number, y: number, direction: string): Promise<TapResult> {
     const phoneId = await this.getPhoneId();
     return this.request<TapResult>('POST', `/phones/${phoneId}/flick`, {
-      start_x: startX,
-      start_y: startY,
-      end_x: endX,
-      end_y: endY,
+      x, y, direction
     });
   }
 
   /**
-   * Pan/scroll gesture (slower than swipe)
+   * Drag from one point to another
    */
-  async scroll(
-    startX: number,
-    startY: number,
-    endX: number,
-    endY: number
-  ): Promise<TapResult> {
+  async drag(fromX: number, fromY: number, toX: number, toY: number): Promise<TapResult> {
     const phoneId = await this.getPhoneId();
-    return this.request<TapResult>('POST', `/phones/${phoneId}/pan`, {
-      start_x: startX,
-      start_y: startY,
-      end_x: endX,
-      end_y: endY,
+    return this.request<TapResult>('POST', `/phones/${phoneId}/drag`, {
+      from_x: fromX, from_y: fromY, to_x: toX, to_y: toY
+    });
+  }
+
+  /**
+   * Long press then drag to another point
+   */
+  async holdAndDrag(fromX: number, fromY: number, toX: number, toY: number, holdDurationMs?: number): Promise<TapResult> {
+    const phoneId = await this.getPhoneId();
+    return this.request<TapResult>('POST', `/phones/${phoneId}/hold-and-drag`, {
+      from_x: fromX, from_y: fromY, to_x: toX, to_y: toY, hold_duration_ms: holdDurationMs || 500
     });
   }
 
@@ -359,9 +353,11 @@ export class TapKitClient {
   /**
    * Unlock the device
    */
-  async unlock(): Promise<TapResult> {
+  async unlock(passcode?: string): Promise<TapResult> {
     const phoneId = await this.getPhoneId();
-    return this.request<TapResult>('POST', `/phones/${phoneId}/unlock`, {});
+    return this.request<TapResult>('POST', `/phones/${phoneId}/unlock`, {
+      ...(passcode ? { passcode } : {})
+    });
   }
 
   /**
@@ -401,21 +397,13 @@ export class TapKitClient {
   }
 
   /**
-   * Run an iOS Shortcut
+   * Run an iOS Shortcut by index
    */
-  async runShortcut(shortcutName: string): Promise<TapResult> {
+  async runShortcut(index: number): Promise<TapResult> {
     const phoneId = await this.getPhoneId();
-    return this.request<TapResult>('POST', `/phones/${phoneId}/run-shortcut`, {
-      shortcut: shortcutName
+    return this.request<TapResult>('POST', `/phones/${phoneId}/shortcut`, {
+      index
     });
-  }
-
-  /**
-   * Open a URL on the device
-   */
-  async openUrl(url: string): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
-    return this.request<TapResult>('POST', `/phones/${phoneId}/open-url`, { url });
   }
 }
 

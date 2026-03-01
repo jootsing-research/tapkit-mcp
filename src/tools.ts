@@ -82,47 +82,54 @@ export const toolDefinitions = [
   },
   {
     name: 'swipe',
-    description: 'Perform a swipe gesture from one point to another. Useful for scrolling, dismissing, or navigating.',
+    description: 'Perform a fast flick/swipe gesture at a position. Useful for dismissing, switching pages, or quick scrolling.',
     inputSchema: {
       type: 'object',
       properties: {
-        start_x: {
+        x: {
           type: 'number',
-          description: 'Starting X coordinate'
+          description: 'X coordinate to swipe from'
         },
-        start_y: {
+        y: {
           type: 'number',
-          description: 'Starting Y coordinate'
+          description: 'Y coordinate to swipe from'
         },
-        end_x: {
-          type: 'number',
-          description: 'Ending X coordinate'
-        },
-        end_y: {
-          type: 'number',
-          description: 'Ending Y coordinate'
-        }
-      },
-      required: ['start_x', 'start_y', 'end_x', 'end_y']
-    }
-  },
-  {
-    name: 'scroll',
-    description: 'Scroll the screen slowly (pan gesture). Use direction helpers: scroll down = start high, end low. Scroll up = start low, end high.',
-    inputSchema: {
-      type: 'object',
-      properties: {
         direction: {
           type: 'string',
           enum: ['up', 'down', 'left', 'right'],
-          description: 'Direction to scroll'
-        },
-        distance: {
-          type: 'number',
-          description: 'Distance to scroll in pixels (default: 300)'
+          description: 'Direction to swipe'
         }
       },
-      required: ['direction']
+      required: ['x', 'y', 'direction']
+    }
+  },
+  {
+    name: 'drag',
+    description: 'Drag from one point to another. Useful for moving sliders, reordering items, or precise scroll gestures.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from_x: { type: 'number', description: 'Starting X coordinate' },
+        from_y: { type: 'number', description: 'Starting Y coordinate' },
+        to_x: { type: 'number', description: 'Ending X coordinate' },
+        to_y: { type: 'number', description: 'Ending Y coordinate' }
+      },
+      required: ['from_x', 'from_y', 'to_x', 'to_y']
+    }
+  },
+  {
+    name: 'hold_and_drag',
+    description: 'Long press then drag to another point. Useful for drag-and-drop, reordering lists, or moving items.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from_x: { type: 'number', description: 'Starting X coordinate' },
+        from_y: { type: 'number', description: 'Starting Y coordinate' },
+        to_x: { type: 'number', description: 'Ending X coordinate' },
+        to_y: { type: 'number', description: 'Ending Y coordinate' },
+        hold_duration_ms: { type: 'number', description: 'How long to hold before dragging in ms (default: 500)' }
+      },
+      required: ['from_x', 'from_y', 'to_x', 'to_y']
     }
   },
   {
@@ -226,16 +233,16 @@ export const toolDefinitions = [
   },
   {
     name: 'run_shortcut',
-    description: 'Run an iOS Shortcut by name.',
+    description: 'Run an iOS Shortcut by its index number in the shortcuts menu.',
     inputSchema: {
       type: 'object',
       properties: {
-        shortcut_name: {
-          type: 'string',
-          description: 'Name of the iOS Shortcut to run'
+        index: {
+          type: 'number',
+          description: 'Index of the shortcut to run (0-based)'
         }
       },
-      required: ['shortcut_name']
+      required: ['index']
     }
   },
   {
@@ -250,20 +257,6 @@ export const toolDefinitions = [
         }
       },
       required: ['app_name']
-    }
-  },
-  {
-    name: 'open_url',
-    description: 'Open a URL on the device. Opens in the default handler for that URL scheme.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'The URL to open (e.g. "https://example.com", "maps://...")'
-        }
-      },
-      required: ['url']
     }
   },
   {
@@ -375,55 +368,35 @@ export async function executeTool(
       }
 
       case 'swipe': {
-        const { start_x, start_y, end_x, end_y } = args as {
-          start_x: number;
-          start_y: number;
-          end_x: number;
-          end_y: number;
-        };
-        const nStart = client.toNative(start_x, start_y);
-        const nEnd = client.toNative(end_x, end_y);
-        await client.swipe(nStart.x, nStart.y, nEnd.x, nEnd.y);
+        const { x, y, direction } = args as { x: number; y: number; direction: string };
+        const native = client.toNative(x, y);
+        await client.flick(native.x, native.y, direction);
         return {
-          content: [{ type: 'text', text: `Swiped from (${start_x}, ${start_y}) to (${end_x}, ${end_y})` }]
+          content: [{ type: 'text', text: `Swiped ${direction} at (${x}, ${y})` }]
         };
       }
 
-      case 'scroll': {
-        const { direction, distance = 300 } = args as {
-          direction: 'up' | 'down' | 'left' | 'right';
-          distance?: number;
+      case 'drag': {
+        const { from_x, from_y, to_x, to_y } = args as {
+          from_x: number; from_y: number; to_x: number; to_y: number;
         };
-        // Calculate scroll in scaled space, then convert to native for execution
-        const scaling = client.getScaling();
-        const centerX = scaling ? Math.round(scaling.scaledWidth / 2) : 200;
-        const centerY = scaling ? Math.round(scaling.scaledHeight / 2) : 400;
-        let startX = centerX, startY = centerY, endX = centerX, endY = centerY;
-
-        switch (direction) {
-          case 'up':
-            startY = centerY + distance / 2;
-            endY = centerY - distance / 2;
-            break;
-          case 'down':
-            startY = centerY - distance / 2;
-            endY = centerY + distance / 2;
-            break;
-          case 'left':
-            startX = centerX + distance / 2;
-            endX = centerX - distance / 2;
-            break;
-          case 'right':
-            startX = centerX - distance / 2;
-            endX = centerX + distance / 2;
-            break;
-        }
-
-        const nStart = client.toNative(startX, startY);
-        const nEnd = client.toNative(endX, endY);
-        await client.scroll(nStart.x, nStart.y, nEnd.x, nEnd.y);
+        const nFrom = client.toNative(from_x, from_y);
+        const nTo = client.toNative(to_x, to_y);
+        await client.drag(nFrom.x, nFrom.y, nTo.x, nTo.y);
         return {
-          content: [{ type: 'text', text: `Scrolled ${direction}` }]
+          content: [{ type: 'text', text: `Dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
+        };
+      }
+
+      case 'hold_and_drag': {
+        const { from_x, from_y, to_x, to_y, hold_duration_ms } = args as {
+          from_x: number; from_y: number; to_x: number; to_y: number; hold_duration_ms?: number;
+        };
+        const nFrom = client.toNative(from_x, from_y);
+        const nTo = client.toNative(to_x, to_y);
+        await client.holdAndDrag(nFrom.x, nFrom.y, nTo.x, nTo.y, hold_duration_ms);
+        return {
+          content: [{ type: 'text', text: `Hold and dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
         };
       }
 
@@ -444,6 +417,7 @@ export async function executeTool(
           content: [{ type: 'text', text: `Long pressed at (${x}, ${y}) for ${duration || 1000}ms` }]
         };
       }
+
 
       case 'lock': {
         await client.lock();
@@ -489,10 +463,10 @@ export async function executeTool(
       }
 
       case 'run_shortcut': {
-        const { shortcut_name } = args as { shortcut_name: string };
-        await client.runShortcut(shortcut_name);
+        const { index } = args as { index: number };
+        await client.runShortcut(index);
         return {
-          content: [{ type: 'text', text: `Ran shortcut: ${shortcut_name}` }]
+          content: [{ type: 'text', text: `Ran shortcut at index: ${index}` }]
         };
       }
 
@@ -501,14 +475,6 @@ export async function executeTool(
         await client.openApp(app_name);
         return {
           content: [{ type: 'text', text: `Opened app: ${app_name}` }]
-        };
-      }
-
-      case 'open_url': {
-        const { url } = args as { url: string };
-        await client.openUrl(url);
-        return {
-          content: [{ type: 'text', text: `Opened URL: ${url}` }]
         };
       }
 
