@@ -286,6 +286,11 @@ export async function executeTool(
   args: Record<string, unknown>
 ): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> }> {
   try {
+    // Auto-resolve phone for all tools that need one (skip list_phones)
+    if (toolName !== 'list_phones') {
+      await client.resolvePhone(args.phone_id as string | undefined);
+    }
+
     switch (toolName) {
       case 'list_phones': {
         const phones = await client.listPhones();
@@ -301,22 +306,11 @@ export async function executeTool(
       }
 
       case 'select_phone': {
-        const { phone_id } = args as { phone_id: string };
-        const phones = await client.listPhones();
-        const phone = phones.find(p => p.id === phone_id);
-        if (!phone) {
-          return {
-            content: [{ type: 'text', text: `Phone not found with ID: ${phone_id}` }]
-          };
-        }
-        client.setPhoneId(phone_id);
-        if (phone.width && phone.height) {
-          client.setScreenDimensions(phone.width, phone.height);
-        }
+        // resolvePhone already called above with args.phone_id
         const scaling = client.getScaling();
         const dims = scaling ? ` (${scaling.scaledWidth}x${scaling.scaledHeight})` : '';
         return {
-          content: [{ type: 'text', text: `Selected phone: ${phone.name}${dims}` }]
+          content: [{ type: 'text', text: `Selected phone${dims}` }]
         };
       }
 
@@ -519,13 +513,17 @@ export async function executeTool(
       }
 
       case 'get_phone_info': {
+        // resolvePhone already called above — scaling is initialized
+        const scaling = client.getScaling();
+        if (scaling) {
+          return {
+            content: [{ type: 'text', text: `Screen: ${scaling.scaledWidth}x${scaling.scaledHeight}` }]
+          };
+        }
         const phoneId = await client.getPhoneId();
         const info = await client.getPhoneInfo(phoneId);
-        const scaling = client.getScaling();
-        const w = scaling ? scaling.scaledWidth : info.width;
-        const h = scaling ? scaling.scaledHeight : info.height;
         return {
-          content: [{ type: 'text', text: `Screen: ${w}x${h}, Name: ${info.name}` }]
+          content: [{ type: 'text', text: `Screen: ${info.width}x${info.height}, Name: ${info.name}` }]
         };
       }
 

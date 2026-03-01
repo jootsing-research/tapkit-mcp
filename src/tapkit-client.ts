@@ -146,13 +146,45 @@ export class TapKitClient {
   }
 
   /**
-   * Get the current phone ID, auto-selecting if not set
+   * Get the current phone ID (without resolving)
    */
   async getPhoneId(): Promise<string> {
     if (this.phoneId) {
       return this.phoneId;
     }
+    throw new TapKitAPIError(
+      400,
+      'NO_PHONE_SELECTED',
+      'No phone selected. Use select_phone or pass phone_id.'
+    );
+  }
 
+  /**
+   * Resolve a phone for use: accepts optional phoneId override,
+   * falls back to stored selection, auto-selects if only one phone.
+   * Also initializes scaling if not yet set.
+   */
+  async resolvePhone(phoneId?: string): Promise<string> {
+    // Explicit phone_id passed — select it
+    if (phoneId) {
+      this.phoneId = phoneId;
+      if (!this.scaling) {
+        try {
+          const info = await this.getPhoneInfo(phoneId);
+          this.setScreenDimensions(info.width, info.height);
+        } catch {
+          // Scaling unavailable — continue without it
+        }
+      }
+      return phoneId;
+    }
+
+    // Already selected
+    if (this.phoneId) {
+      return this.phoneId;
+    }
+
+    // Auto-select: fetch phones
     const phones = await this.listPhones();
     if (phones.length === 0) {
       throw new TapKitAPIError(
@@ -162,11 +194,21 @@ export class TapKitClient {
       );
     }
 
-    // Don't auto-select - require explicit selection
+    if (phones.length === 1) {
+      const phone = phones[0];
+      this.phoneId = phone.id;
+      if (phone.width && phone.height) {
+        this.setScreenDimensions(phone.width, phone.height);
+      }
+      return phone.id;
+    }
+
+    // Multiple phones — require explicit selection
+    const phoneList = phones.map(p => `${p.name} (ID: ${p.id})`).join(', ');
     throw new TapKitAPIError(
       400,
       'NO_PHONE_SELECTED',
-      `No phone selected. Use select_phone to choose one of: ${phones.map(p => p.name).join(', ')}`
+      `Multiple phones connected. Pass phone_id or use select_phone. Available: ${phoneList}`
     );
   }
 
