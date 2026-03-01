@@ -302,7 +302,7 @@ export class TapKitClient {
   async openApp(appName: string): Promise<TapResult> {
     const phoneId = await this.getPhoneId();
     return this.request<TapResult>('POST', `/phones/${phoneId}/open-app`, {
-      app: appName
+      app_name: appName
     });
   }
 
