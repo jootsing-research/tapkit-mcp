@@ -246,6 +246,15 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'escape',
+    description: 'Press escape to dismiss keyboards, alerts, popups, or modal screens.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
     name: 'open_app',
     description: 'Open an app by name or bundle ID. Examples: "Safari", "com.apple.mobilesafari".',
     inputSchema: {
@@ -467,6 +476,13 @@ export async function executeTool(
         await client.runShortcut(index);
         return {
           content: [{ type: 'text', text: `Ran shortcut at index: ${index}` }]
+        };
+      }
+
+      case 'escape': {
+        await client.escape();
+        return {
+          content: [{ type: 'text', text: 'Pressed escape' }]
         };
       }
 

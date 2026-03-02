@@ -397,6 +397,14 @@ export class TapKitClient {
   }
 
   /**
+   * Press escape (dismiss keyboards, alerts, popups, etc.)
+   */
+  async escape(): Promise<TapResult> {
+    const phoneId = await this.getPhoneId();
+    return this.request<TapResult>('POST', `/phones/${phoneId}/escape`, {});
+  }
+
+  /**
    * Run an iOS Shortcut by index
    */
   async runShortcut(index: number): Promise<TapResult> {
