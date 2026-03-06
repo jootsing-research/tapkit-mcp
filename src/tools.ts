@@ -35,7 +35,12 @@ export const toolDefinitions = [
     description: 'Take a screenshot of the iPhone screen. Returns the current screen state as an image. Use this to see what is on screen before and after actions.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
@@ -45,6 +50,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         x: {
           type: 'number',
           description: 'X coordinate (pixels from left)'
@@ -63,6 +72,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         text: {
           type: 'string',
           description: 'The text to type'
@@ -76,7 +89,12 @@ export const toolDefinitions = [
     description: 'Press the home button to go to the home screen or exit the current app.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
@@ -86,6 +104,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         x: {
           type: 'number',
           description: 'X coordinate to swipe from'
@@ -109,6 +131,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         from_x: { type: 'number', description: 'Starting X coordinate' },
         from_y: { type: 'number', description: 'Starting Y coordinate' },
         to_x: { type: 'number', description: 'Ending X coordinate' },
@@ -123,6 +149,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         from_x: { type: 'number', description: 'Starting X coordinate' },
         from_y: { type: 'number', description: 'Starting Y coordinate' },
         to_x: { type: 'number', description: 'Ending X coordinate' },
@@ -138,6 +168,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         x: {
           type: 'number',
           description: 'X coordinate'
@@ -156,6 +190,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         x: {
           type: 'number',
           description: 'X coordinate'
@@ -177,7 +215,12 @@ export const toolDefinitions = [
     description: 'Lock the iPhone screen.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
@@ -186,7 +229,12 @@ export const toolDefinitions = [
     description: 'Unlock the iPhone screen.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
@@ -195,7 +243,12 @@ export const toolDefinitions = [
     description: 'Increase the volume.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
@@ -204,7 +257,12 @@ export const toolDefinitions = [
     description: 'Decrease the volume.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
@@ -214,6 +272,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         query: {
           type: 'string',
           description: 'Search query (optional)'
@@ -227,7 +289,12 @@ export const toolDefinitions = [
     description: 'Activate Siri voice assistant.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
@@ -237,6 +304,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         index: {
           type: 'number',
           description: 'Index of the shortcut to run (0-based)'
@@ -250,7 +321,12 @@ export const toolDefinitions = [
     description: 'Press escape to dismiss keyboards, alerts, popups, or modal screens.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
@@ -260,6 +336,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
         app_name: {
           type: 'string',
           description: 'The app name (e.g. "Safari", "Settings") or bundle ID (e.g. "com.apple.mobilesafari")'
@@ -273,7 +353,12 @@ export const toolDefinitions = [
     description: 'Get screen dimensions and device info for the selected phone. Returns width, height, and name.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
       required: []
     }
   },
