@@ -30,7 +30,7 @@ export interface TapKitError {
   message: string;
 }
 
-const MAX_LONG_EDGE = 1344;
+export const MAX_LONG_EDGE = 1344;
 
 export interface ScreenScaling {
   nativeWidth: number;

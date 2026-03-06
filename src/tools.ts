@@ -3,7 +3,7 @@
  */
 
 import sharp from 'sharp';
-import { TapKitClient, TapKitAPIError } from './tapkit-client.js';
+import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE } from './tapkit-client.js';
 
 // Tool input schemas (JSON Schema format)
 export const toolDefinitions = [
@@ -320,25 +320,34 @@ export async function executeTool(
         const imageBuffer = await client.screenshot();
         const scaling = client.getScaling();
 
-        let resizedBuffer: Buffer;
         let reportW: number;
         let reportH: number;
+        let pipeline: sharp.Sharp;
 
         if (scaling) {
-          // Resize to the scaled coordinate space so the model sees pixels 1:1 with tap coords
-          resizedBuffer = await sharp(imageBuffer)
-            .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' })
-            .png()
-            .toBuffer();
+          pipeline = sharp(imageBuffer)
+            .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' });
           reportW = scaling.scaledWidth;
           reportH = scaling.scaledHeight;
         } else {
-          resizedBuffer = imageBuffer;
+          // No scaling info — still resize to cap the long edge
           const meta = await sharp(imageBuffer).metadata();
-          reportW = meta.width ?? 0;
-          reportH = meta.height ?? 0;
+          const w = meta.width ?? 0;
+          const h = meta.height ?? 0;
+          const longest = Math.max(w, h);
+          if (longest > MAX_LONG_EDGE) {
+            const scale = MAX_LONG_EDGE / longest;
+            reportW = Math.round(w * scale);
+            reportH = Math.round(h * scale);
+            pipeline = sharp(imageBuffer).resize(reportW, reportH, { fit: 'inside' });
+          } else {
+            reportW = w;
+            reportH = h;
+            pipeline = sharp(imageBuffer);
+          }
         }
 
+        const resizedBuffer = await pipeline.jpeg({ quality: 80 }).toBuffer();
         const base64 = resizedBuffer.toString('base64');
         return {
           content: [
@@ -346,7 +355,7 @@ export async function executeTool(
             {
               type: 'image',
               data: base64,
-              mimeType: 'image/png'
+              mimeType: 'image/jpeg'
             }
           ]
         };
