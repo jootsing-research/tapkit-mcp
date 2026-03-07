@@ -57,9 +57,14 @@ export class TapKitClient {
     const url = `${TAPKIT_API_URL}${endpoint}`;
 
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${this.authToken}`,
       'Content-Type': 'application/json',
     };
+
+    if (this.authToken.startsWith('tk_')) {
+      headers['X-API-Key'] = this.authToken;
+    } else {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
 
     let response: Response;
     try {
