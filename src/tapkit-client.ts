@@ -60,7 +60,7 @@ export class TapKitClient {
       'Content-Type': 'application/json',
     };
 
-    if (this.authToken.startsWith('tk_')) {
+    if (this.authToken.startsWith('tk_') || this.authToken.startsWith('ses_')) {
       headers['X-API-Key'] = this.authToken;
     } else {
       headers['Authorization'] = `Bearer ${this.authToken}`;
