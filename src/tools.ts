@@ -349,6 +349,20 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'enable_switch_control',
+    description: 'Enable Switch Control on the Mac for a given phone. This must be done before the phone can be controlled via Switch Control.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        }
+      },
+      required: []
+    }
+  },
+  {
     name: 'get_phone_info',
     description: 'Get screen dimensions and device info for the selected phone. Returns width, height, and name.',
     inputSchema: {
@@ -577,6 +591,13 @@ export async function executeTool(
         await client.escape();
         return {
           content: [{ type: 'text', text: 'Pressed escape' }]
+        };
+      }
+
+      case 'enable_switch_control': {
+        await client.enableSwitchControl();
+        return {
+          content: [{ type: 'text', text: 'Enabled Switch Control' }]
         };
       }
 

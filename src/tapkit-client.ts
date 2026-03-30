@@ -410,6 +410,14 @@ export class TapKitClient {
   }
 
   /**
+   * Enable Switch Control on the Mac for a given phone
+   */
+  async enableSwitchControl(): Promise<TapResult> {
+    const phoneId = await this.getPhoneId();
+    return this.request<TapResult>('POST', `/phones/${phoneId}/switch-control/enable`, {});
+  }
+
+  /**
    * Run an iOS Shortcut by index
    */
   async runShortcut(index: number): Promise<TapResult> {
