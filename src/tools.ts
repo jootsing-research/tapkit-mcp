@@ -363,6 +363,24 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'copy_text_to_phone',
+    description: 'Load text into a phone\'s clipboard. After this completes, the text is on the phone\'s clipboard and can be pasted anywhere.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID (required when multiple phones are connected)'
+        },
+        text: {
+          type: 'string',
+          description: 'The text to copy to the clipboard'
+        }
+      },
+      required: ['text']
+    }
+  },
+  {
     name: 'get_phone_info',
     description: 'Get screen dimensions and device info for the selected phone. Returns width, height, and name.',
     inputSchema: {
@@ -598,6 +616,14 @@ export async function executeTool(
         await client.enableSwitchControl();
         return {
           content: [{ type: 'text', text: 'Enabled Switch Control' }]
+        };
+      }
+
+      case 'copy_text_to_phone': {
+        const { text } = args as { text: string };
+        await client.copyText(text);
+        return {
+          content: [{ type: 'text', text: `Copied text to phone clipboard` }]
         };
       }
 

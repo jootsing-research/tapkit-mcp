@@ -418,6 +418,14 @@ export class TapKitClient {
   }
 
   /**
+   * Copy text to the phone's clipboard
+   */
+  async copyText(text: string): Promise<TapResult> {
+    const phoneId = await this.getPhoneId();
+    return this.request<TapResult>('POST', `/phones/${phoneId}/copy-text`, { text });
+  }
+
+  /**
    * Run an iOS Shortcut by index
    */
   async runShortcut(index: number): Promise<TapResult> {
