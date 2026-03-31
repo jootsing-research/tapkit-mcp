@@ -66,24 +66,24 @@ export const toolDefinitions = [
       required: ['x', 'y']
     }
   },
-  {
-    name: 'type_text',
-    description: 'Type text into the currently focused text field. Make sure a text field is active first (tap it if needed).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
-        },
-        text: {
-          type: 'string',
-          description: 'The text to type'
-        }
-      },
-      required: ['text']
-    }
-  },
+  // {
+  //   name: 'type_text',
+  //   description: 'Type text into the currently focused text field. Make sure a text field is active first (tap it if needed).',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID (required when multiple phones are connected)'
+  //       },
+  //       text: {
+  //         type: 'string',
+  //         description: 'The text to type'
+  //       }
+  //     },
+  //     required: ['text']
+  //   }
+  // },
   {
     name: 'press_home',
     description: 'Press the home button to go to the home screen or exit the current app.',
@@ -487,13 +487,13 @@ export async function executeTool(
         };
       }
 
-      case 'type_text': {
-        const { text } = args as { text: string };
-        await client.typeText(text);
-        return {
-          content: [{ type: 'text', text: `Typed: "${text}"` }]
-        };
-      }
+      // case 'type_text': {
+      //   const { text } = args as { text: string };
+      //   await client.typeText(text);
+      //   return {
+      //     content: [{ type: 'text', text: `Typed: "${text}"` }]
+      //   };
+      // }
 
       case 'press_home': {
         await client.pressHome();
