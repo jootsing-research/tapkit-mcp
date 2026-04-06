@@ -10,6 +10,8 @@ export interface Phone {
   name: string;
   unique_id: string;
   phone_number: string | null;
+  connection_status?: string;
+  connected_mac_id?: string | null;
   width?: number;
   height?: number;
 }

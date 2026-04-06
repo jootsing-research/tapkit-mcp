@@ -418,7 +418,12 @@ export async function executeTool(
             content: [{ type: 'text', text: 'No phones found. Make sure TapKit is set up and a phone is connected.' }]
           };
         }
-        const phoneList = phones.map(p => `- ${p.name} (ID: ${p.id})`).join('\n');
+        const phoneList = phones.map(p => {
+          let line = `- ${p.name} (ID: ${p.id})`;
+          if (p.connection_status) line += ` [${p.connection_status}]`;
+          if (p.connected_mac_id) line += ` (Mac: ${p.connected_mac_id})`;
+          return line;
+        }).join('\n');
         return {
           content: [{ type: 'text', text: `Found ${phones.length} phone(s):\n${phoneList}` }]
         };
