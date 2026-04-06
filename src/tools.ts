@@ -3,7 +3,7 @@
  */
 
 import sharp from 'sharp';
-import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE } from './tapkit-client.js';
+import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus } from './tapkit-client.js';
 
 // Tool input schemas (JSON Schema format)
 export const toolDefinitions = [
@@ -18,7 +18,7 @@ export const toolDefinitions = [
   },
   {
     name: 'select_phone',
-    description: 'Select which phone to control by its ID. Use list_phones first to see available phones and their IDs.',
+    description: 'Select and activate a phone for control. Switches the active phone on the connected Mac. Use list_phones first to see available phones.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -381,8 +381,22 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'get_phone_status',
+    description: 'Get real-time status of a phone including connection state, Switch Control, screen lock, and streaming status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'The ID of the phone to check status for'
+        }
+      },
+      required: ['phone_id']
+    }
+  },
+  {
     name: 'get_phone_info',
-    description: 'Get screen dimensions and device info for the selected phone. Returns width, height, and name.',
+    description: '(Deprecated — use get_phone_status instead) Get screen dimensions and device info for the selected phone.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -396,271 +410,332 @@ export const toolDefinitions = [
   },
 ];
 
+type ToolResult = { content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> };
+
 /**
- * Execute a tool with the given arguments
+ * Inner tool execution — dispatches to the correct handler.
+ */
+async function executeToolInner(
+  client: TapKitClient,
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<ToolResult> {
+  // Auto-resolve phone for all tools that need one (skip list_phones)
+  if (toolName !== 'list_phones') {
+    await client.resolvePhone(args.phone_id as string | undefined);
+  }
+
+  switch (toolName) {
+    case 'list_phones': {
+      const phones = await client.listPhones();
+      if (phones.length === 0) {
+        return {
+          content: [{ type: 'text', text: 'No phones found. Make sure TapKit is set up and a phone is connected.' }]
+        };
+      }
+      const phoneList = phones.map(p => {
+        const name = p.display_name || p.name;
+        const status = p.connection_status.toUpperCase();
+        let line = `- ${name} [${status}] (ID: ${p.id})`;
+        if (p.connected_mac_id) line += ` (Mac: ${p.connected_mac_id})`;
+        if (p.width && p.height) line += ` ${p.width}x${p.height}`;
+        return line;
+      }).join('\n');
+      return {
+        content: [{ type: 'text', text: `Found ${phones.length} phone(s):\n${phoneList}` }]
+      };
+    }
+
+    case 'select_phone': {
+      const phoneId = args.phone_id as string;
+      const phone = await client.selectPhoneOnMac(phoneId);
+      client.setPhoneId(phoneId);
+      if (phone.width && phone.height) {
+        client.setScreenDimensions(phone.width, phone.height);
+      }
+      const scaling = client.getScaling();
+      const dims = scaling ? ` (${scaling.scaledWidth}x${scaling.scaledHeight})` : '';
+      return {
+        content: [{ type: 'text', text: `Selected and activated phone: ${phone.display_name || phone.name}${dims}` }]
+      };
+    }
+
+    case 'screenshot': {
+      const imageBuffer = await client.screenshot();
+      const scaling = client.getScaling();
+
+      let reportW: number;
+      let reportH: number;
+      let pipeline: sharp.Sharp;
+
+      if (scaling) {
+        pipeline = sharp(imageBuffer)
+          .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' });
+        reportW = scaling.scaledWidth;
+        reportH = scaling.scaledHeight;
+      } else {
+        // No scaling info — still resize to cap the long edge
+        const meta = await sharp(imageBuffer).metadata();
+        const w = meta.width ?? 0;
+        const h = meta.height ?? 0;
+        const longest = Math.max(w, h);
+        if (longest > MAX_LONG_EDGE) {
+          const scale = MAX_LONG_EDGE / longest;
+          reportW = Math.round(w * scale);
+          reportH = Math.round(h * scale);
+          pipeline = sharp(imageBuffer).resize(reportW, reportH, { fit: 'inside' });
+        } else {
+          reportW = w;
+          reportH = h;
+          pipeline = sharp(imageBuffer);
+        }
+      }
+
+      const resizedBuffer = await pipeline.jpeg({ quality: 80 }).toBuffer();
+      const base64 = resizedBuffer.toString('base64');
+      return {
+        content: [
+          { type: 'text', text: `Screenshot: ${reportW}x${reportH}. Coordinates for tap/swipe map 1:1 with image pixels.` },
+          {
+            type: 'image',
+            data: base64,
+            mimeType: 'image/jpeg'
+          }
+        ]
+      };
+    }
+
+    case 'tap': {
+      const { x, y } = args as { x: number; y: number };
+      const native = client.toNative(x, y);
+      await client.tap(native.x, native.y);
+      return {
+        content: [{ type: 'text', text: `Tapped at (${x}, ${y})` }]
+      };
+    }
+
+    // case 'type_text': {
+    //   const { text } = args as { text: string };
+    //   await client.typeText(text);
+    //   return {
+    //     content: [{ type: 'text', text: `Typed: "${text}"` }]
+    //   };
+    // }
+
+    case 'press_home': {
+      await client.pressHome();
+      return {
+        content: [{ type: 'text', text: 'Pressed home button' }]
+      };
+    }
+
+    case 'swipe': {
+      const { x, y, direction } = args as { x: number; y: number; direction: string };
+      const native = client.toNative(x, y);
+      await client.flick(native.x, native.y, direction);
+      return {
+        content: [{ type: 'text', text: `Swiped ${direction} at (${x}, ${y})` }]
+      };
+    }
+
+    case 'drag': {
+      const { from_x, from_y, to_x, to_y } = args as {
+        from_x: number; from_y: number; to_x: number; to_y: number;
+      };
+      const nFrom = client.toNative(from_x, from_y);
+      const nTo = client.toNative(to_x, to_y);
+      await client.drag(nFrom.x, nFrom.y, nTo.x, nTo.y);
+      return {
+        content: [{ type: 'text', text: `Dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
+      };
+    }
+
+    case 'hold_and_drag': {
+      const { from_x, from_y, to_x, to_y, hold_duration_ms } = args as {
+        from_x: number; from_y: number; to_x: number; to_y: number; hold_duration_ms?: number;
+      };
+      const nFrom = client.toNative(from_x, from_y);
+      const nTo = client.toNative(to_x, to_y);
+      await client.holdAndDrag(nFrom.x, nFrom.y, nTo.x, nTo.y, hold_duration_ms);
+      return {
+        content: [{ type: 'text', text: `Hold and dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
+      };
+    }
+
+    case 'double_tap': {
+      const { x, y } = args as { x: number; y: number };
+      const native = client.toNative(x, y);
+      await client.doubleTap(native.x, native.y);
+      return {
+        content: [{ type: 'text', text: `Double tapped at (${x}, ${y})` }]
+      };
+    }
+
+    case 'long_press': {
+      const { x, y, duration } = args as { x: number; y: number; duration?: number };
+      const native = client.toNative(x, y);
+      await client.longPress(native.x, native.y, duration);
+      return {
+        content: [{ type: 'text', text: `Long pressed at (${x}, ${y}) for ${duration || 1000}ms` }]
+      };
+    }
+
+    case 'lock': {
+      await client.lock();
+      return {
+        content: [{ type: 'text', text: 'Locked the device' }]
+      };
+    }
+
+    case 'unlock': {
+      await client.unlock();
+      return {
+        content: [{ type: 'text', text: 'Unlocked the device' }]
+      };
+    }
+
+    case 'volume_up': {
+      await client.volumeUp();
+      return {
+        content: [{ type: 'text', text: 'Increased volume' }]
+      };
+    }
+
+    case 'volume_down': {
+      await client.volumeDown();
+      return {
+        content: [{ type: 'text', text: 'Decreased volume' }]
+      };
+    }
+
+    case 'spotlight': {
+      const { query } = args as { query?: string };
+      await client.spotlight(query);
+      return {
+        content: [{ type: 'text', text: query ? `Opened Spotlight and searched for: ${query}` : 'Opened Spotlight' }]
+      };
+    }
+
+    case 'activate_siri': {
+      await client.activateSiri();
+      return {
+        content: [{ type: 'text', text: 'Activated Siri' }]
+      };
+    }
+
+    case 'run_shortcut': {
+      const { index } = args as { index: number };
+      await client.runShortcut(index);
+      return {
+        content: [{ type: 'text', text: `Ran shortcut at index: ${index}` }]
+      };
+    }
+
+    case 'escape': {
+      await client.escape();
+      return {
+        content: [{ type: 'text', text: 'Pressed escape' }]
+      };
+    }
+
+    case 'enable_switch_control': {
+      await client.enableSwitchControl();
+      return {
+        content: [{ type: 'text', text: 'Enabled Switch Control' }]
+      };
+    }
+
+    case 'copy_text_to_phone': {
+      const { text } = args as { text: string };
+      await client.copyText(text);
+      return {
+        content: [{ type: 'text', text: `Copied text to phone clipboard` }]
+      };
+    }
+
+    case 'open_app': {
+      const { app_name } = args as { app_name: string };
+      await client.openApp(app_name);
+      return {
+        content: [{ type: 'text', text: `Opened app: ${app_name}` }]
+      };
+    }
+
+    case 'get_phone_status': {
+      const phoneId = args.phone_id as string || await client.getPhoneId();
+      const status: PhoneStatus = await client.getPhoneStatus(phoneId);
+      const lines = [
+        `Phone: ${status.phone_name}`,
+        `Status: ${status.connection_status}`,
+        `Switch Control: ${status.switch_control_enabled ? 'enabled' : 'disabled'}`,
+        `Screen: ${status.screen_locked ? 'locked' : 'unlocked'}`,
+        `Streaming: ${status.streaming ? 'yes' : 'no'}`,
+      ];
+      if (status.width && status.height) {
+        lines.push(`Dimensions: ${status.width}x${status.height}`);
+      }
+      return {
+        content: [{ type: 'text', text: lines.join('\n') }]
+      };
+    }
+
+    case 'get_phone_info': {
+      // resolvePhone already called above — scaling is initialized
+      const scaling = client.getScaling();
+      if (scaling) {
+        return {
+          content: [{ type: 'text', text: `Screen: ${scaling.scaledWidth}x${scaling.scaledHeight}` }]
+        };
+      }
+      const phoneId = await client.getPhoneId();
+      const info = await client.getPhoneInfo(phoneId);
+      return {
+        content: [{ type: 'text', text: `Screen: ${info.width}x${info.height}, Name: ${info.name}` }]
+      };
+    }
+
+    default:
+      return {
+        content: [{ type: 'text', text: `Unknown tool: ${toolName}` }]
+      };
+  }
+}
+
+/**
+ * Execute a tool with the given arguments.
+ * Automatically handles PHONE_NOT_SELECTED by selecting the phone and retrying once.
  */
 export async function executeTool(
   client: TapKitClient,
   toolName: string,
   args: Record<string, unknown>
-): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> }> {
+): Promise<ToolResult> {
   try {
-    // Auto-resolve phone for all tools that need one (skip list_phones)
-    if (toolName !== 'list_phones') {
-      await client.resolvePhone(args.phone_id as string | undefined);
-    }
-
-    switch (toolName) {
-      case 'list_phones': {
-        const phones = await client.listPhones();
-        if (phones.length === 0) {
-          return {
-            content: [{ type: 'text', text: 'No phones found. Make sure TapKit is set up and a phone is connected.' }]
-          };
-        }
-        const phoneList = phones.map(p => {
-          let line = `- ${p.name} (ID: ${p.id})`;
-          if (p.connection_status) line += ` [${p.connection_status}]`;
-          if (p.connected_mac_id) line += ` (Mac: ${p.connected_mac_id})`;
-          return line;
-        }).join('\n');
-        return {
-          content: [{ type: 'text', text: `Found ${phones.length} phone(s):\n${phoneList}` }]
-        };
-      }
-
-      case 'select_phone': {
-        // resolvePhone already called above with args.phone_id
-        const scaling = client.getScaling();
-        const dims = scaling ? ` (${scaling.scaledWidth}x${scaling.scaledHeight})` : '';
-        return {
-          content: [{ type: 'text', text: `Selected phone${dims}` }]
-        };
-      }
-
-      case 'screenshot': {
-        const imageBuffer = await client.screenshot();
-        const scaling = client.getScaling();
-
-        let reportW: number;
-        let reportH: number;
-        let pipeline: sharp.Sharp;
-
-        if (scaling) {
-          pipeline = sharp(imageBuffer)
-            .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' });
-          reportW = scaling.scaledWidth;
-          reportH = scaling.scaledHeight;
-        } else {
-          // No scaling info — still resize to cap the long edge
-          const meta = await sharp(imageBuffer).metadata();
-          const w = meta.width ?? 0;
-          const h = meta.height ?? 0;
-          const longest = Math.max(w, h);
-          if (longest > MAX_LONG_EDGE) {
-            const scale = MAX_LONG_EDGE / longest;
-            reportW = Math.round(w * scale);
-            reportH = Math.round(h * scale);
-            pipeline = sharp(imageBuffer).resize(reportW, reportH, { fit: 'inside' });
-          } else {
-            reportW = w;
-            reportH = h;
-            pipeline = sharp(imageBuffer);
-          }
-        }
-
-        const resizedBuffer = await pipeline.jpeg({ quality: 80 }).toBuffer();
-        const base64 = resizedBuffer.toString('base64');
-        return {
-          content: [
-            { type: 'text', text: `Screenshot: ${reportW}x${reportH}. Coordinates for tap/swipe map 1:1 with image pixels.` },
-            {
-              type: 'image',
-              data: base64,
-              mimeType: 'image/jpeg'
-            }
-          ]
-        };
-      }
-
-      case 'tap': {
-        const { x, y } = args as { x: number; y: number };
-        const native = client.toNative(x, y);
-        await client.tap(native.x, native.y);
-        return {
-          content: [{ type: 'text', text: `Tapped at (${x}, ${y})` }]
-        };
-      }
-
-      // case 'type_text': {
-      //   const { text } = args as { text: string };
-      //   await client.typeText(text);
-      //   return {
-      //     content: [{ type: 'text', text: `Typed: "${text}"` }]
-      //   };
-      // }
-
-      case 'press_home': {
-        await client.pressHome();
-        return {
-          content: [{ type: 'text', text: 'Pressed home button' }]
-        };
-      }
-
-      case 'swipe': {
-        const { x, y, direction } = args as { x: number; y: number; direction: string };
-        const native = client.toNative(x, y);
-        await client.flick(native.x, native.y, direction);
-        return {
-          content: [{ type: 'text', text: `Swiped ${direction} at (${x}, ${y})` }]
-        };
-      }
-
-      case 'drag': {
-        const { from_x, from_y, to_x, to_y } = args as {
-          from_x: number; from_y: number; to_x: number; to_y: number;
-        };
-        const nFrom = client.toNative(from_x, from_y);
-        const nTo = client.toNative(to_x, to_y);
-        await client.drag(nFrom.x, nFrom.y, nTo.x, nTo.y);
-        return {
-          content: [{ type: 'text', text: `Dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
-        };
-      }
-
-      case 'hold_and_drag': {
-        const { from_x, from_y, to_x, to_y, hold_duration_ms } = args as {
-          from_x: number; from_y: number; to_x: number; to_y: number; hold_duration_ms?: number;
-        };
-        const nFrom = client.toNative(from_x, from_y);
-        const nTo = client.toNative(to_x, to_y);
-        await client.holdAndDrag(nFrom.x, nFrom.y, nTo.x, nTo.y, hold_duration_ms);
-        return {
-          content: [{ type: 'text', text: `Hold and dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
-        };
-      }
-
-      case 'double_tap': {
-        const { x, y } = args as { x: number; y: number };
-        const native = client.toNative(x, y);
-        await client.doubleTap(native.x, native.y);
-        return {
-          content: [{ type: 'text', text: `Double tapped at (${x}, ${y})` }]
-        };
-      }
-
-      case 'long_press': {
-        const { x, y, duration } = args as { x: number; y: number; duration?: number };
-        const native = client.toNative(x, y);
-        await client.longPress(native.x, native.y, duration);
-        return {
-          content: [{ type: 'text', text: `Long pressed at (${x}, ${y}) for ${duration || 1000}ms` }]
-        };
-      }
-
-
-      case 'lock': {
-        await client.lock();
-        return {
-          content: [{ type: 'text', text: 'Locked the device' }]
-        };
-      }
-
-      case 'unlock': {
-        await client.unlock();
-        return {
-          content: [{ type: 'text', text: 'Unlocked the device' }]
-        };
-      }
-
-      case 'volume_up': {
-        await client.volumeUp();
-        return {
-          content: [{ type: 'text', text: 'Increased volume' }]
-        };
-      }
-
-      case 'volume_down': {
-        await client.volumeDown();
-        return {
-          content: [{ type: 'text', text: 'Decreased volume' }]
-        };
-      }
-
-      case 'spotlight': {
-        const { query } = args as { query?: string };
-        await client.spotlight(query);
-        return {
-          content: [{ type: 'text', text: query ? `Opened Spotlight and searched for: ${query}` : 'Opened Spotlight' }]
-        };
-      }
-
-      case 'activate_siri': {
-        await client.activateSiri();
-        return {
-          content: [{ type: 'text', text: 'Activated Siri' }]
-        };
-      }
-
-      case 'run_shortcut': {
-        const { index } = args as { index: number };
-        await client.runShortcut(index);
-        return {
-          content: [{ type: 'text', text: `Ran shortcut at index: ${index}` }]
-        };
-      }
-
-      case 'escape': {
-        await client.escape();
-        return {
-          content: [{ type: 'text', text: 'Pressed escape' }]
-        };
-      }
-
-      case 'enable_switch_control': {
-        await client.enableSwitchControl();
-        return {
-          content: [{ type: 'text', text: 'Enabled Switch Control' }]
-        };
-      }
-
-      case 'copy_text_to_phone': {
-        const { text } = args as { text: string };
-        await client.copyText(text);
-        return {
-          content: [{ type: 'text', text: `Copied text to phone clipboard` }]
-        };
-      }
-
-      case 'open_app': {
-        const { app_name } = args as { app_name: string };
-        await client.openApp(app_name);
-        return {
-          content: [{ type: 'text', text: `Opened app: ${app_name}` }]
-        };
-      }
-
-      case 'get_phone_info': {
-        // resolvePhone already called above — scaling is initialized
-        const scaling = client.getScaling();
-        if (scaling) {
-          return {
-            content: [{ type: 'text', text: `Screen: ${scaling.scaledWidth}x${scaling.scaledHeight}` }]
-          };
-        }
-        const phoneId = await client.getPhoneId();
-        const info = await client.getPhoneInfo(phoneId);
-        return {
-          content: [{ type: 'text', text: `Screen: ${info.width}x${info.height}, Name: ${info.name}` }]
-        };
-      }
-
-      default:
-        return {
-          content: [{ type: 'text', text: `Unknown tool: ${toolName}` }]
-        };
-    }
+    return await executeToolInner(client, toolName, args);
   } catch (error) {
+    // Auto-select and retry on PHONE_NOT_SELECTED (409)
+    if (
+      error instanceof TapKitAPIError &&
+      error.code === 'PHONE_NOT_SELECTED' &&
+      error.status === 409
+    ) {
+      const phoneId = (error.context?.phone_id as string) || (args.phone_id as string);
+      if (phoneId) {
+        try {
+          const phone = await client.selectPhoneOnMac(phoneId);
+          client.setPhoneId(phoneId);
+          if (phone.width && phone.height) {
+            client.setScreenDimensions(phone.width, phone.height);
+          }
+          return await executeToolInner(client, toolName, args);
+        } catch (retryError) {
+          if (retryError instanceof TapKitAPIError) {
+            return { content: [{ type: 'text', text: `Error: ${retryError.toUserMessage()}` }] };
+          }
+          throw retryError;
+        }
+      }
+    }
     if (error instanceof TapKitAPIError) {
       return {
         content: [{ type: 'text', text: `Error: ${error.toUserMessage()}` }]

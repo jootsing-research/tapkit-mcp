@@ -8,18 +8,42 @@ const TAPKIT_API_URL = process.env.TAPKIT_API_URL || 'https://api.tapkit.ai/v1';
 export interface Phone {
   id: string;
   name: string;
+  device_name: string;
+  display_name: string;
   unique_id: string;
   phone_number: string | null;
-  connection_status?: string;
-  connected_mac_id?: string | null;
-  width?: number;
-  height?: number;
+  shortcut_token: string | null;
+  typing_method: string | null;
+  speed: number | null;
+  activation_state: string | null;
+  activated_at: string | null;
+  deactivated_at: string | null;
+  consumes_entitlement: boolean;
+  can_control: boolean;
+  can_view_on_web: boolean;
+  connection_status: 'online' | 'available' | 'offline';
+  connected_mac_id: string | null;
+  width: number | null;
+  height: number | null;
+  created_at: string;
 }
 
+/** @deprecated Use Phone.width/height from listPhones() instead */
 export interface PhoneInfo {
   width: number;
   height: number;
   name: string;
+}
+
+export interface PhoneStatus {
+  phone_id: string;
+  phone_name: string;
+  connection_status: 'online' | 'available' | 'offline';
+  switch_control_enabled: boolean;
+  screen_locked: boolean;
+  streaming: boolean;
+  width: number | null;
+  height: number | null;
 }
 
 export interface TapResult {
@@ -88,17 +112,19 @@ export class TapKitClient {
       let errorCode = 'UNKNOWN_ERROR';
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
 
+      let errorContext: Record<string, unknown> | undefined;
       try {
         const responseBody = await response.json();
         // Handle jootsing-server's {"detail": {"error": "...", "message": "..."}} format
         const errorData = responseBody.detail || responseBody;
         if (errorData.error) errorCode = errorData.error;
         if (errorData.message) errorMessage = errorData.message;
+        if (errorData.context) errorContext = errorData.context;
       } catch {
         // Response wasn't JSON, use defaults
       }
 
-      throw new TapKitAPIError(response.status, errorCode, errorMessage);
+      throw new TapKitAPIError(response.status, errorCode, errorMessage, errorContext);
     }
 
     // Handle screenshot endpoint which returns binary
@@ -168,17 +194,20 @@ export class TapKitClient {
 
   /**
    * Resolve a phone for use: accepts optional phoneId override,
-   * falls back to stored selection, auto-selects if only one phone.
+   * falls back to stored selection, auto-selects based on connection status.
    * Also initializes scaling if not yet set.
    */
   async resolvePhone(phoneId?: string): Promise<string> {
-    // Explicit phone_id passed — select it
+    // Explicit phone_id passed — select it, rely on auto-retry for PHONE_NOT_SELECTED
     if (phoneId) {
       this.phoneId = phoneId;
       if (!this.scaling) {
         try {
-          const info = await this.getPhoneInfo(phoneId);
-          this.setScreenDimensions(info.width, info.height);
+          const phones = await this.listPhones();
+          const phone = phones.find(p => p.id === phoneId);
+          if (phone?.width && phone?.height) {
+            this.setScreenDimensions(phone.width, phone.height);
+          }
         } catch {
           // Scaling unavailable — continue without it
         }
@@ -191,9 +220,12 @@ export class TapKitClient {
       return this.phoneId;
     }
 
-    // Auto-select: fetch phones
+    // Auto-select based on connection status
     const phones = await this.listPhones();
-    if (phones.length === 0) {
+    const online = phones.filter(p => p.connection_status === 'online');
+    const available = phones.filter(p => p.connection_status === 'available');
+
+    if (phones.length === 0 || (online.length === 0 && available.length === 0)) {
       throw new TapKitAPIError(
         404,
         'NO_PHONES_CONNECTED',
@@ -201,47 +233,56 @@ export class TapKitClient {
       );
     }
 
-    if (phones.length === 1) {
-      const phone = phones[0];
-      this.phoneId = phone.id;
-      if (phone.width && phone.height) {
-        this.setScreenDimensions(phone.width, phone.height);
-      }
-      return phone.id;
+    let chosen: Phone;
+    if (online.length === 1) {
+      chosen = online[0];
+    } else if (online.length === 0 && available.length === 1) {
+      // Single available phone — auto-select it on the Mac
+      await this.selectPhoneOnMac(available[0].id);
+      chosen = available[0];
+    } else {
+      // Multiple online or multiple available — require explicit selection
+      const reachable = [...online, ...available];
+      const phoneList = reachable
+        .map(p => `${p.display_name || p.name} [${p.connection_status}] (ID: ${p.id})`)
+        .join(', ');
+      throw new TapKitAPIError(
+        400,
+        'NO_PHONE_SELECTED',
+        `Multiple phones connected. Pass phone_id or use select_phone. Available: ${phoneList}`
+      );
     }
 
-    // Multiple phones — require explicit selection
-    const phoneList = phones.map(p => `${p.name} (ID: ${p.id})`).join(', ');
-    throw new TapKitAPIError(
-      400,
-      'NO_PHONE_SELECTED',
-      `Multiple phones connected. Pass phone_id or use select_phone. Available: ${phoneList}`
-    );
+    this.phoneId = chosen.id;
+    if (chosen.width && chosen.height) {
+      this.setScreenDimensions(chosen.width, chosen.height);
+    }
+    return chosen.id;
   }
 
   /**
-   * List all connected phones, enriched with screen dimensions
+   * List all phones (width/height included in API response)
    */
   async listPhones(): Promise<Phone[]> {
-    const phones = await this.request<Phone[]>('GET', '/phones');
-    // Fetch dimensions for each phone (same pattern as Python SDK)
-    await Promise.all(
-      phones.map(async (phone) => {
-        try {
-          const info = await this.getPhoneInfo(phone.id);
-          phone.width = info.width;
-          phone.height = info.height;
-        } catch {
-          // Dimensions unavailable — leave as undefined
-        }
-      })
-    );
-    return phones;
+    return this.request<Phone[]>('GET', '/phones');
   }
 
   /**
-   * Get device info (screen dimensions) for a phone
+   * Select and activate a phone on its connected Mac.
+   * Dispatches an activate_phone job to physically switch Switch Control.
    */
+  async selectPhoneOnMac(phoneId: string): Promise<Phone> {
+    return this.request<Phone>('POST', `/phones/${phoneId}/select`);
+  }
+
+  /**
+   * Get real-time status for a specific phone
+   */
+  async getPhoneStatus(phoneId: string): Promise<PhoneStatus> {
+    return this.request<PhoneStatus>('GET', `/phones/${phoneId}/status`);
+  }
+
+  /** @deprecated Use Phone.width/height from listPhones() instead */
   async getPhoneInfo(phoneId: string): Promise<PhoneInfo> {
     return this.request<PhoneInfo>('GET', `/phones/${phoneId}/info`);
   }
@@ -441,12 +482,14 @@ export class TapKitClient {
 export class TapKitAPIError extends Error {
   status: number;
   code: string;
+  context?: Record<string, unknown>;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, context?: Record<string, unknown>) {
     super(message);
     this.name = 'TapKitAPIError';
     this.status = status;
     this.code = code;
+    this.context = context;
   }
 
   toUserMessage(): string {
@@ -455,6 +498,10 @@ export class TapKitAPIError extends Error {
         return 'No phones connected. Please ensure TapKit is running and a phone is connected.';
       case 'NO_PHONE_SELECTED':
         return this.message;
+      case 'PHONE_NOT_SELECTED':
+        return 'Phone is connected but not active. Use select_phone to switch to it.';
+      case 'PHONE_NOT_CONNECTED':
+        return 'Phone is not connected to any Mac. Check that the device is online and TapKit is running.';
       case 'PHONE_NOT_FOUND':
         return 'Phone not found. The device may have been disconnected.';
       case 'MAC_APP_NOT_RUNNING':
