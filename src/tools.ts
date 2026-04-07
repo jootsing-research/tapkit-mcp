@@ -9,7 +9,7 @@ import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus } from '.
 export const toolDefinitions = [
   {
     name: 'list_phones',
-    description: 'List all connected phones. Use this to see which devices are available.',
+    description: 'List all phones with their connection status, IDs, and dimensions. ALWAYS call this first to discover phone_ids — every other phone-targeting tool requires a phone_id parameter.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -18,7 +18,7 @@ export const toolDefinitions = [
   },
   {
     name: 'select_phone',
-    description: 'Select and activate a phone for control. Switches the active phone on the connected Mac. Use list_phones first to see available phones.',
+    description: 'Physically activate a phone on its connected Mac (switches Switch Control to it). Optional — actions on an inactive phone will auto-activate it. Use this only if you want to eagerly switch before a long sequence of actions.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -38,10 +38,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -52,7 +52,7 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         x: {
           type: 'number',
@@ -63,7 +63,7 @@ export const toolDefinitions = [
           description: 'Y coordinate (pixels from top)'
         }
       },
-      required: ['x', 'y']
+      required: ['phone_id', 'x', 'y']
     }
   },
   // {
@@ -92,10 +92,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -106,7 +106,7 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         x: {
           type: 'number',
@@ -122,7 +122,7 @@ export const toolDefinitions = [
           description: 'Direction to swipe'
         }
       },
-      required: ['x', 'y', 'direction']
+      required: ['phone_id', 'x', 'y', 'direction']
     }
   },
   {
@@ -133,14 +133,14 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         from_x: { type: 'number', description: 'Starting X coordinate' },
         from_y: { type: 'number', description: 'Starting Y coordinate' },
         to_x: { type: 'number', description: 'Ending X coordinate' },
         to_y: { type: 'number', description: 'Ending Y coordinate' }
       },
-      required: ['from_x', 'from_y', 'to_x', 'to_y']
+      required: ['phone_id', 'from_x', 'from_y', 'to_x', 'to_y']
     }
   },
   {
@@ -151,7 +151,7 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         from_x: { type: 'number', description: 'Starting X coordinate' },
         from_y: { type: 'number', description: 'Starting Y coordinate' },
@@ -159,7 +159,7 @@ export const toolDefinitions = [
         to_y: { type: 'number', description: 'Ending Y coordinate' },
         hold_duration_ms: { type: 'number', description: 'How long to hold before dragging in ms (default: 500)' }
       },
-      required: ['from_x', 'from_y', 'to_x', 'to_y']
+      required: ['phone_id', 'from_x', 'from_y', 'to_x', 'to_y']
     }
   },
   {
@@ -170,7 +170,7 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         x: {
           type: 'number',
@@ -181,7 +181,7 @@ export const toolDefinitions = [
           description: 'Y coordinate'
         }
       },
-      required: ['x', 'y']
+      required: ['phone_id', 'x', 'y']
     }
   },
   {
@@ -192,7 +192,7 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         x: {
           type: 'number',
@@ -207,7 +207,7 @@ export const toolDefinitions = [
           description: 'Duration to hold in milliseconds (default: 1000)'
         }
       },
-      required: ['x', 'y']
+      required: ['phone_id', 'x', 'y']
     }
   },
   {
@@ -218,10 +218,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -232,10 +232,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -246,10 +246,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -260,10 +260,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -274,14 +274,14 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         query: {
           type: 'string',
           description: 'Search query (optional)'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -292,10 +292,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -306,14 +306,14 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         index: {
           type: 'number',
           description: 'Index of the shortcut to run (0-based)'
         }
       },
-      required: ['index']
+      required: ['phone_id', 'index']
     }
   },
   {
@@ -324,10 +324,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -338,14 +338,14 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         app_name: {
           type: 'string',
           description: 'The app name (e.g. "Safari", "Settings") or bundle ID (e.g. "com.apple.mobilesafari")'
         }
       },
-      required: ['app_name']
+      required: ['phone_id', 'app_name']
     }
   },
   {
@@ -356,10 +356,10 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
   {
@@ -370,14 +370,14 @@ export const toolDefinitions = [
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         },
         text: {
           type: 'string',
           description: 'The text to copy to the clipboard'
         }
       },
-      required: ['text']
+      required: ['phone_id', 'text']
     }
   },
   {
@@ -396,16 +396,16 @@ export const toolDefinitions = [
   },
   {
     name: 'get_phone_info',
-    description: '(Deprecated — use get_phone_status instead) Get screen dimensions and device info for the selected phone.',
+    description: '(Deprecated — use get_phone_status instead) Get screen dimensions and device info for a phone.',
     inputSchema: {
       type: 'object',
       properties: {
         phone_id: {
           type: 'string',
-          description: 'Phone ID (required when multiple phones are connected)'
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
         }
       },
-      required: []
+      required: ['phone_id']
     }
   },
 ];
@@ -414,20 +414,20 @@ type ToolResult = { content: Array<{ type: string; text?: string; data?: string;
 
 /**
  * Inner tool execution — dispatches to the correct handler.
+ * Every phone-targeting tool reads its own phone_id from args.
  */
 async function executeToolInner(
   client: TapKitClient,
   toolName: string,
   args: Record<string, unknown>
 ): Promise<ToolResult> {
-  // Auto-resolve phone for all tools that need one (skip list_phones)
-  if (toolName !== 'list_phones') {
-    await client.resolvePhone(args.phone_id as string | undefined);
-  }
-
   switch (toolName) {
     case 'list_phones': {
       const phones = await client.listPhones();
+      // Populate scaling cache so subsequent action calls don't pay the cache-miss penalty
+      for (const p of phones) {
+        if (p.width && p.height) client.cacheScaling(p.id, p.width, p.height);
+      }
       if (phones.length === 0) {
         return {
           content: [{ type: 'text', text: 'No phones found. Make sure TapKit is set up and a phone is connected.' }]
@@ -449,11 +449,10 @@ async function executeToolInner(
     case 'select_phone': {
       const phoneId = args.phone_id as string;
       const phone = await client.selectPhoneOnMac(phoneId);
-      client.setPhoneId(phoneId);
       if (phone.width && phone.height) {
-        client.setScreenDimensions(phone.width, phone.height);
+        client.cacheScaling(phoneId, phone.width, phone.height);
       }
-      const scaling = client.getScaling();
+      const scaling = client.getScaling(phoneId);
       const dims = scaling ? ` (${scaling.scaledWidth}x${scaling.scaledHeight})` : '';
       return {
         content: [{ type: 'text', text: `Selected and activated phone: ${phone.display_name || phone.name}${dims}` }]
@@ -461,8 +460,9 @@ async function executeToolInner(
     }
 
     case 'screenshot': {
-      const imageBuffer = await client.screenshot();
-      const scaling = client.getScaling();
+      const phoneId = args.phone_id as string;
+      const imageBuffer = await client.screenshot(phoneId);
+      let scaling = client.getScaling(phoneId);
 
       let reportW: number;
       let reportH: number;
@@ -474,16 +474,16 @@ async function executeToolInner(
         reportW = scaling.scaledWidth;
         reportH = scaling.scaledHeight;
       } else {
-        // No scaling info — still resize to cap the long edge
+        // No cached scaling — read native dims from PNG metadata and cache them
         const meta = await sharp(imageBuffer).metadata();
         const w = meta.width ?? 0;
         const h = meta.height ?? 0;
-        const longest = Math.max(w, h);
-        if (longest > MAX_LONG_EDGE) {
-          const scale = MAX_LONG_EDGE / longest;
-          reportW = Math.round(w * scale);
-          reportH = Math.round(h * scale);
-          pipeline = sharp(imageBuffer).resize(reportW, reportH, { fit: 'inside' });
+        if (w && h) {
+          scaling = client.cacheScaling(phoneId, w, h);
+          pipeline = sharp(imageBuffer)
+            .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' });
+          reportW = scaling.scaledWidth;
+          reportH = scaling.scaledHeight;
         } else {
           reportW = w;
           reportH = h;
@@ -506,164 +506,182 @@ async function executeToolInner(
     }
 
     case 'tap': {
-      const { x, y } = args as { x: number; y: number };
-      const native = client.toNative(x, y);
-      await client.tap(native.x, native.y);
+      const { phone_id, x, y } = args as { phone_id: string; x: number; y: number };
+      await client.ensureScaling(phone_id);
+      const native = client.toNative(phone_id, x, y);
+      await client.tap(phone_id, native.x, native.y);
       return {
         content: [{ type: 'text', text: `Tapped at (${x}, ${y})` }]
       };
     }
 
     // case 'type_text': {
-    //   const { text } = args as { text: string };
-    //   await client.typeText(text);
+    //   const { phone_id, text } = args as { phone_id: string; text: string };
+    //   await client.typeText(phone_id, text);
     //   return {
     //     content: [{ type: 'text', text: `Typed: "${text}"` }]
     //   };
     // }
 
     case 'press_home': {
-      await client.pressHome();
+      const phoneId = args.phone_id as string;
+      await client.pressHome(phoneId);
       return {
         content: [{ type: 'text', text: 'Pressed home button' }]
       };
     }
 
     case 'swipe': {
-      const { x, y, direction } = args as { x: number; y: number; direction: string };
-      const native = client.toNative(x, y);
-      await client.flick(native.x, native.y, direction);
+      const { phone_id, x, y, direction } = args as { phone_id: string; x: number; y: number; direction: string };
+      await client.ensureScaling(phone_id);
+      const native = client.toNative(phone_id, x, y);
+      await client.flick(phone_id, native.x, native.y, direction);
       return {
         content: [{ type: 'text', text: `Swiped ${direction} at (${x}, ${y})` }]
       };
     }
 
     case 'drag': {
-      const { from_x, from_y, to_x, to_y } = args as {
-        from_x: number; from_y: number; to_x: number; to_y: number;
+      const { phone_id, from_x, from_y, to_x, to_y } = args as {
+        phone_id: string; from_x: number; from_y: number; to_x: number; to_y: number;
       };
-      const nFrom = client.toNative(from_x, from_y);
-      const nTo = client.toNative(to_x, to_y);
-      await client.drag(nFrom.x, nFrom.y, nTo.x, nTo.y);
+      await client.ensureScaling(phone_id);
+      const nFrom = client.toNative(phone_id, from_x, from_y);
+      const nTo = client.toNative(phone_id, to_x, to_y);
+      await client.drag(phone_id, nFrom.x, nFrom.y, nTo.x, nTo.y);
       return {
         content: [{ type: 'text', text: `Dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
       };
     }
 
     case 'hold_and_drag': {
-      const { from_x, from_y, to_x, to_y, hold_duration_ms } = args as {
-        from_x: number; from_y: number; to_x: number; to_y: number; hold_duration_ms?: number;
+      const { phone_id, from_x, from_y, to_x, to_y, hold_duration_ms } = args as {
+        phone_id: string; from_x: number; from_y: number; to_x: number; to_y: number; hold_duration_ms?: number;
       };
-      const nFrom = client.toNative(from_x, from_y);
-      const nTo = client.toNative(to_x, to_y);
-      await client.holdAndDrag(nFrom.x, nFrom.y, nTo.x, nTo.y, hold_duration_ms);
+      await client.ensureScaling(phone_id);
+      const nFrom = client.toNative(phone_id, from_x, from_y);
+      const nTo = client.toNative(phone_id, to_x, to_y);
+      await client.holdAndDrag(phone_id, nFrom.x, nFrom.y, nTo.x, nTo.y, hold_duration_ms);
       return {
         content: [{ type: 'text', text: `Hold and dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
       };
     }
 
     case 'double_tap': {
-      const { x, y } = args as { x: number; y: number };
-      const native = client.toNative(x, y);
-      await client.doubleTap(native.x, native.y);
+      const { phone_id, x, y } = args as { phone_id: string; x: number; y: number };
+      await client.ensureScaling(phone_id);
+      const native = client.toNative(phone_id, x, y);
+      await client.doubleTap(phone_id, native.x, native.y);
       return {
         content: [{ type: 'text', text: `Double tapped at (${x}, ${y})` }]
       };
     }
 
     case 'long_press': {
-      const { x, y, duration } = args as { x: number; y: number; duration?: number };
-      const native = client.toNative(x, y);
-      await client.longPress(native.x, native.y, duration);
+      const { phone_id, x, y, duration } = args as { phone_id: string; x: number; y: number; duration?: number };
+      await client.ensureScaling(phone_id);
+      const native = client.toNative(phone_id, x, y);
+      await client.longPress(phone_id, native.x, native.y, duration);
       return {
         content: [{ type: 'text', text: `Long pressed at (${x}, ${y}) for ${duration || 1000}ms` }]
       };
     }
 
     case 'lock': {
-      await client.lock();
+      const phoneId = args.phone_id as string;
+      await client.lock(phoneId);
       return {
         content: [{ type: 'text', text: 'Locked the device' }]
       };
     }
 
     case 'unlock': {
-      await client.unlock();
+      const phoneId = args.phone_id as string;
+      await client.unlock(phoneId);
       return {
         content: [{ type: 'text', text: 'Unlocked the device' }]
       };
     }
 
     case 'volume_up': {
-      await client.volumeUp();
+      const phoneId = args.phone_id as string;
+      await client.volumeUp(phoneId);
       return {
         content: [{ type: 'text', text: 'Increased volume' }]
       };
     }
 
     case 'volume_down': {
-      await client.volumeDown();
+      const phoneId = args.phone_id as string;
+      await client.volumeDown(phoneId);
       return {
         content: [{ type: 'text', text: 'Decreased volume' }]
       };
     }
 
     case 'spotlight': {
-      const { query } = args as { query?: string };
-      await client.spotlight(query);
+      const { phone_id, query } = args as { phone_id: string; query?: string };
+      await client.spotlight(phone_id, query);
       return {
         content: [{ type: 'text', text: query ? `Opened Spotlight and searched for: ${query}` : 'Opened Spotlight' }]
       };
     }
 
     case 'activate_siri': {
-      await client.activateSiri();
+      const phoneId = args.phone_id as string;
+      await client.activateSiri(phoneId);
       return {
         content: [{ type: 'text', text: 'Activated Siri' }]
       };
     }
 
     case 'run_shortcut': {
-      const { index } = args as { index: number };
-      await client.runShortcut(index);
+      const { phone_id, index } = args as { phone_id: string; index: number };
+      await client.runShortcut(phone_id, index);
       return {
         content: [{ type: 'text', text: `Ran shortcut at index: ${index}` }]
       };
     }
 
     case 'escape': {
-      await client.escape();
+      const phoneId = args.phone_id as string;
+      await client.escape(phoneId);
       return {
         content: [{ type: 'text', text: 'Pressed escape' }]
       };
     }
 
     case 'enable_switch_control': {
-      await client.enableSwitchControl();
+      const phoneId = args.phone_id as string;
+      await client.enableSwitchControl(phoneId);
       return {
         content: [{ type: 'text', text: 'Enabled Switch Control' }]
       };
     }
 
     case 'copy_text_to_phone': {
-      const { text } = args as { text: string };
-      await client.copyText(text);
+      const { phone_id, text } = args as { phone_id: string; text: string };
+      await client.copyText(phone_id, text);
       return {
         content: [{ type: 'text', text: `Copied text to phone clipboard` }]
       };
     }
 
     case 'open_app': {
-      const { app_name } = args as { app_name: string };
-      await client.openApp(app_name);
+      const { phone_id, app_name } = args as { phone_id: string; app_name: string };
+      await client.openApp(phone_id, app_name);
       return {
         content: [{ type: 'text', text: `Opened app: ${app_name}` }]
       };
     }
 
     case 'get_phone_status': {
-      const phoneId = args.phone_id as string || await client.getPhoneId();
+      const phoneId = args.phone_id as string;
       const status: PhoneStatus = await client.getPhoneStatus(phoneId);
+      // Cache scaling while we have dims
+      if (status.width && status.height) {
+        client.cacheScaling(phoneId, status.width, status.height);
+      }
       const lines = [
         `Phone: ${status.phone_name}`,
         `Status: ${status.connection_status}`,
@@ -680,17 +698,13 @@ async function executeToolInner(
     }
 
     case 'get_phone_info': {
-      // resolvePhone already called above — scaling is initialized
-      const scaling = client.getScaling();
-      if (scaling) {
-        return {
-          content: [{ type: 'text', text: `Screen: ${scaling.scaledWidth}x${scaling.scaledHeight}` }]
-        };
+      const phoneId = args.phone_id as string;
+      const status = await client.getPhoneStatus(phoneId);
+      if (status.width && status.height) {
+        client.cacheScaling(phoneId, status.width, status.height);
       }
-      const phoneId = await client.getPhoneId();
-      const info = await client.getPhoneInfo(phoneId);
       return {
-        content: [{ type: 'text', text: `Screen: ${info.width}x${info.height}, Name: ${info.name}` }]
+        content: [{ type: 'text', text: `Screen: ${status.width}x${status.height}, Name: ${status.phone_name}` }]
       };
     }
 
@@ -723,9 +737,8 @@ export async function executeTool(
       if (phoneId) {
         try {
           const phone = await client.selectPhoneOnMac(phoneId);
-          client.setPhoneId(phoneId);
           if (phone.width && phone.height) {
-            client.setScreenDimensions(phone.width, phone.height);
+            client.cacheScaling(phoneId, phone.width, phone.height);
           }
           return await executeToolInner(client, toolName, args);
         } catch (retryError) {

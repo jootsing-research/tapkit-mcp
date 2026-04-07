@@ -68,8 +68,7 @@ export interface ScreenScaling {
 
 export class TapKitClient {
   private authToken: string;
-  private phoneId: string | null = null;
-  private scaling: ScreenScaling | null = null;
+  private scalingCache: Map<string, ScreenScaling> = new Map();
 
   constructor(authToken: string) {
     this.authToken = authToken;
@@ -137,21 +136,13 @@ export class TapKitClient {
   }
 
   /**
-   * Set the phone ID to use for all operations
+   * Compute scaling that caps the longest edge at MAX_LONG_EDGE (1344px),
+   * so the model reasons in the same coordinate space as the image it sees.
    */
-  setPhoneId(phoneId: string): void {
-    this.phoneId = phoneId;
-  }
-
-  /**
-   * Compute and store screen scaling for a phone's native dimensions.
-   * Caps the longest edge at MAX_LONG_EDGE (1344px) so the model
-   * reasons in the same coordinate space as the image it sees.
-   */
-  setScreenDimensions(nativeWidth: number, nativeHeight: number): void {
+  private computeScaling(nativeWidth: number, nativeHeight: number): ScreenScaling {
     const longest = Math.max(nativeWidth, nativeHeight);
     const scaleFactor = Math.min(1.0, MAX_LONG_EDGE / longest);
-    this.scaling = {
+    return {
       nativeWidth,
       nativeHeight,
       scaledWidth: Math.round(nativeWidth * scaleFactor),
@@ -161,103 +152,52 @@ export class TapKitClient {
   }
 
   /**
-   * Get the current screen scaling (null if no phone selected yet)
+   * Cache scaling for a phone (called from tool handlers when dimensions are known)
    */
-  getScaling(): ScreenScaling | null {
-    return this.scaling;
+  cacheScaling(phoneId: string, nativeWidth: number, nativeHeight: number): ScreenScaling {
+    const scaling = this.computeScaling(nativeWidth, nativeHeight);
+    this.scalingCache.set(phoneId, scaling);
+    return scaling;
+  }
+
+  /**
+   * Get cached scaling for a phone (synchronous, returns null on miss)
+   */
+  getScaling(phoneId: string): ScreenScaling | null {
+    return this.scalingCache.get(phoneId) ?? null;
+  }
+
+  /**
+   * Ensure scaling is cached for a phone. On cache miss, fetches from listPhones
+   * (which returns all phones with width/height in one call, populating the cache).
+   */
+  async ensureScaling(phoneId: string): Promise<ScreenScaling | null> {
+    const cached = this.scalingCache.get(phoneId);
+    if (cached) return cached;
+    try {
+      const phones = await this.listPhones();
+      for (const p of phones) {
+        if (p.width && p.height) {
+          this.cacheScaling(p.id, p.width, p.height);
+        }
+      }
+    } catch {
+      // Best effort — return null if we can't fetch
+    }
+    return this.scalingCache.get(phoneId) ?? null;
   }
 
   /**
    * Convert model coordinates (scaled space) to native phone coordinates.
+   * Returns coords as-is if no scaling is cached for the phone.
    */
-  toNative(x: number, y: number): { x: number; y: number } {
-    if (!this.scaling) return { x, y };
+  toNative(phoneId: string, x: number, y: number): { x: number; y: number } {
+    const scaling = this.scalingCache.get(phoneId);
+    if (!scaling) return { x, y };
     return {
-      x: Math.round(x / this.scaling.scaleFactor),
-      y: Math.round(y / this.scaling.scaleFactor),
+      x: Math.round(x / scaling.scaleFactor),
+      y: Math.round(y / scaling.scaleFactor),
     };
-  }
-
-  /**
-   * Get the current phone ID (without resolving)
-   */
-  async getPhoneId(): Promise<string> {
-    if (this.phoneId) {
-      return this.phoneId;
-    }
-    throw new TapKitAPIError(
-      400,
-      'NO_PHONE_SELECTED',
-      'No phone selected. Use select_phone or pass phone_id.'
-    );
-  }
-
-  /**
-   * Resolve a phone for use: accepts optional phoneId override,
-   * falls back to stored selection, auto-selects based on connection status.
-   * Also initializes scaling if not yet set.
-   */
-  async resolvePhone(phoneId?: string): Promise<string> {
-    // Explicit phone_id passed — select it, rely on auto-retry for PHONE_NOT_SELECTED
-    if (phoneId) {
-      this.phoneId = phoneId;
-      if (!this.scaling) {
-        try {
-          const phones = await this.listPhones();
-          const phone = phones.find(p => p.id === phoneId);
-          if (phone?.width && phone?.height) {
-            this.setScreenDimensions(phone.width, phone.height);
-          }
-        } catch {
-          // Scaling unavailable — continue without it
-        }
-      }
-      return phoneId;
-    }
-
-    // Already selected
-    if (this.phoneId) {
-      return this.phoneId;
-    }
-
-    // Auto-select based on connection status
-    const phones = await this.listPhones();
-    const online = phones.filter(p => p.connection_status === 'online');
-    const available = phones.filter(p => p.connection_status === 'available');
-
-    if (phones.length === 0 || (online.length === 0 && available.length === 0)) {
-      throw new TapKitAPIError(
-        404,
-        'NO_PHONES_CONNECTED',
-        'No phones are connected. Please ensure TapKit is running and a phone is connected.'
-      );
-    }
-
-    let chosen: Phone;
-    if (online.length === 1) {
-      chosen = online[0];
-    } else if (online.length === 0 && available.length === 1) {
-      // Single available phone — auto-select it on the Mac
-      await this.selectPhoneOnMac(available[0].id);
-      chosen = available[0];
-    } else {
-      // Multiple online or multiple available — require explicit selection
-      const reachable = [...online, ...available];
-      const phoneList = reachable
-        .map(p => `${p.display_name || p.name} [${p.connection_status}] (ID: ${p.id})`)
-        .join(', ');
-      throw new TapKitAPIError(
-        400,
-        'NO_PHONE_SELECTED',
-        `Multiple phones connected. Pass phone_id or use select_phone. Available: ${phoneList}`
-      );
-    }
-
-    this.phoneId = chosen.id;
-    if (chosen.width && chosen.height) {
-      this.setScreenDimensions(chosen.width, chosen.height);
-    }
-    return chosen.id;
   }
 
   /**
@@ -291,24 +231,21 @@ export class TapKitClient {
    * Get a screenshot from the phone
    * Returns PNG image buffer
    */
-  async screenshot(): Promise<Buffer> {
-    const phoneId = await this.getPhoneId();
+  async screenshot(phoneId: string): Promise<Buffer> {
     return this.request<Buffer>('GET', `/phones/${phoneId}/screenshot`);
   }
 
   /**
    * Tap at specific coordinates
    */
-  async tap(x: number, y: number): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async tap(phoneId: string, x: number, y: number): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/tap`, { x, y });
   }
 
   /**
    * Tap an element by natural language description
    */
-  async tapElement(description: string): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async tapElement(phoneId: string, description: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/tap/select`, {
       description
     });
@@ -317,16 +254,14 @@ export class TapKitClient {
   /**
    * Double tap at coordinates
    */
-  async doubleTap(x: number, y: number): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async doubleTap(phoneId: string, x: number, y: number): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/double-tap`, { x, y });
   }
 
   /**
    * Long press at coordinates
    */
-  async longPress(x: number, y: number, durationMs?: number): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async longPress(phoneId: string, x: number, y: number, durationMs?: number): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/tap-and-hold`, {
       x,
       y,
@@ -337,8 +272,7 @@ export class TapKitClient {
   /**
    * Flick gesture at position in a direction
    */
-  async flick(x: number, y: number, direction: string): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async flick(phoneId: string, x: number, y: number, direction: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/flick`, {
       x, y, direction
     });
@@ -347,8 +281,7 @@ export class TapKitClient {
   /**
    * Drag from one point to another
    */
-  async drag(fromX: number, fromY: number, toX: number, toY: number): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async drag(phoneId: string, fromX: number, fromY: number, toX: number, toY: number): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/drag`, {
       from_x: fromX, from_y: fromY, to_x: toX, to_y: toY
     });
@@ -357,8 +290,7 @@ export class TapKitClient {
   /**
    * Long press then drag to another point
    */
-  async holdAndDrag(fromX: number, fromY: number, toX: number, toY: number, holdDurationMs?: number): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async holdAndDrag(phoneId: string, fromX: number, fromY: number, toX: number, toY: number, holdDurationMs?: number): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/hold-and-drag`, {
       from_x: fromX, from_y: fromY, to_x: toX, to_y: toY, hold_duration_ms: holdDurationMs || 500
     });
@@ -367,24 +299,21 @@ export class TapKitClient {
   /**
    * Type text into active field
    */
-  async typeText(text: string): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async typeText(phoneId: string, text: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/type`, { text, method: 'shortcut' });
   }
 
   /**
    * Press home button
    */
-  async pressHome(): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async pressHome(phoneId: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/home`, {});
   }
 
   /**
    * Open an app by name or bundle ID
    */
-  async openApp(appName: string): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async openApp(phoneId: string, appName: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/open-app`, {
       app_name: appName
     });
@@ -393,16 +322,14 @@ export class TapKitClient {
   /**
    * Lock the device
    */
-  async lock(): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async lock(phoneId: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/lock`, {});
   }
 
   /**
    * Unlock the device
    */
-  async unlock(passcode?: string): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async unlock(phoneId: string, passcode?: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/unlock`, {
       ...(passcode ? { passcode } : {})
     });
@@ -411,27 +338,24 @@ export class TapKitClient {
   /**
    * Adjust volume up
    */
-  async volumeUp(): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async volumeUp(phoneId: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/volume-up`, {});
   }
 
   /**
    * Adjust volume down
    */
-  async volumeDown(): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async volumeDown(phoneId: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/volume-down`, {});
   }
 
   /**
    * Open Spotlight search
    */
-  async spotlight(query?: string): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async spotlight(phoneId: string, query?: string): Promise<TapResult> {
     const result = await this.request<TapResult>('POST', `/phones/${phoneId}/spotlight`, {});
     if (query) {
-      await this.typeText(query);
+      await this.typeText(phoneId, query);
     }
     return result;
   }
@@ -439,40 +363,35 @@ export class TapKitClient {
   /**
    * Activate Siri
    */
-  async activateSiri(): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async activateSiri(phoneId: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/siri`, {});
   }
 
   /**
    * Press escape (dismiss keyboards, alerts, popups, etc.)
    */
-  async escape(): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async escape(phoneId: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/escape`, {});
   }
 
   /**
    * Enable Switch Control on the Mac for a given phone
    */
-  async enableSwitchControl(): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async enableSwitchControl(phoneId: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/switch-control/enable`, {});
   }
 
   /**
    * Copy text to the phone's clipboard
    */
-  async copyText(text: string): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async copyText(phoneId: string, text: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/copy-text`, { text });
   }
 
   /**
    * Run an iOS Shortcut by index
    */
-  async runShortcut(index: number): Promise<TapResult> {
-    const phoneId = await this.getPhoneId();
+  async runShortcut(phoneId: string, index: number): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/shortcut`, {
       index
     });
