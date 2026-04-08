@@ -125,23 +125,6 @@ Skills are Markdown files that teach AI agents how to navigate specific iOS apps
 
 The official plugin repos bundle these skills automatically. If you're using a standalone MCP setup, grab them from the [skills repo](https://github.com/Jootsing-Research/skills).
 
-**Available skills:**
-
-| Skill | Category |
-|-------|----------|
-| **tapkit** | Core -- MCP tool usage fundamentals |
-| **tapkit-cli** | Core -- CLI-based interaction |
-| **clock** | iOS Clock app (alarms, timers, stopwatch) |
-| **weather** | iOS Weather app (forecasts, conditions) |
-| **facebook** | Feed, posts, Marketplace, Reels, groups |
-| **instagram** | Feed, stories, Reels, DMs, profiles |
-| **linkedin** | Professional feed, jobs, connections |
-| **telegram** | Chats, groups, channels, bots |
-| **tiktok** | For You feed, videos, creators |
-| **twitter** | Feed, posts, threads, search |
-| **hinge** | Profiles, likes, roses, matches |
-| **uber-eats** | Restaurants, menus, ordering |
-
 ## How It Works
 
 - **Coordinate scaling** -- Screenshots are resized to a max 1344px long edge (JPEG @ 80%) for efficient transmission. Tap coordinates are automatically translated back to native screen space.
