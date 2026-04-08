@@ -1,0 +1,173 @@
+# TapKit MCP
+
+MCP server that lets AI agents control real iPhones. Screenshot, tap, swipe, type, open apps -- all through the [Model Context Protocol](https://modelcontextprotocol.io).
+
+```
+AI Agent  -->  MCP Protocol  -->  TapKit MCP Server  -->  TapKit API  -->  Real iPhone
+```
+
+## Getting Started
+
+### Use a Plugin (Recommended)
+
+The fastest way to get TapKit working with your AI agent is through an official plugin. Plugins bundle the MCP server connection *and* app-navigation skills together -- no manual setup needed.
+
+| Agent | Plugin Repo |
+|-------|-------------|
+| **Claude Code / Claude Desktop** | [tapkit-plugins-claude](https://github.com/Jootsing-Research/tapkit-plugins-claude) |
+| **OpenAI Codex** | [tapkit-plugins-codex](https://github.com/Jootsing-Research/tapkit-plugins-codex) |
+
+### Use the MCP Server Directly
+
+If your agent supports MCP but doesn't have a dedicated plugin, you can connect to the hosted server:
+
+**Remote (hosted on Vercel):**
+
+Add to your MCP config (`.mcp.json`, `claude_desktop_config.json`, etc.):
+
+```json
+{
+  "mcpServers": {
+    "tapkit": {
+      "type": "url",
+      "url": "https://mcp.tapkit.ai/mcp"
+    }
+  }
+}
+```
+
+**Local (development):**
+
+```bash
+git clone https://github.com/Jootsing-Research/tapkit-mcp.git
+cd tapkit-mcp
+npm install
+cp .env.example .env  # Add your TAPKIT_API_KEY
+npm run dev
+```
+
+Then configure your agent to use the stdio transport:
+
+```json
+{
+  "mcpServers": {
+    "tapkit": {
+      "command": "npx",
+      "args": ["tsx", "src/index.ts"],
+      "cwd": "/path/to/tapkit-mcp",
+      "env": {
+        "TAPKIT_API_KEY": "tk_your_key"
+      }
+    }
+  }
+}
+```
+
+### Use Skills Without a Plugin
+
+For agents that support the open [Agent Skills](https://agentskills.io) standard (Cursor, GitHub Copilot, OpenClaw, etc.), install TapKit skills separately:
+
+```bash
+npx skills add jootsing-research/skills
+```
+
+Then connect TapKit via the MCP server or CLI. See the [skills repo](https://github.com/Jootsing-Research/skills) for details.
+
+## MCP Tools
+
+All tools require a `phone_id` parameter. Call `list_phones` first to discover available phones.
+
+### Device
+
+| Tool | Description |
+|------|-------------|
+| `list_phones` | List all phones with connection status, IDs, and dimensions |
+| `select_phone` | Physically activate a phone on its connected Mac |
+| `get_phone_status` | Get real-time status (connection, Switch Control, screen lock, streaming) |
+| `enable_switch_control` | Enable Switch Control on the Mac for a given phone |
+| `screenshot` | Take a screenshot (returned as JPEG, max 1344px long edge) |
+
+### Touch & Gestures
+
+| Tool | Description |
+|------|-------------|
+| `tap` | Tap at (x, y) coordinates |
+| `double_tap` | Double tap at (x, y) -- for zooming or text selection |
+| `long_press` | Long press at (x, y) -- for context menus (default 1000ms) |
+| `swipe` | Fast flick gesture in a direction (up/down/left/right) |
+| `drag` | Drag from one point to another -- for sliders, precise scrolling |
+| `hold_and_drag` | Long press then drag -- for reordering lists, drag-and-drop |
+
+### Navigation & Input
+
+| Tool | Description |
+|------|-------------|
+| `press_home` | Press the home button |
+| `open_app` | Open an app by name or bundle ID |
+| `spotlight` | Open Spotlight search, optionally with a query |
+| `escape` | Dismiss keyboards, alerts, popups, or modal screens |
+| `copy_text_to_phone` | Load text into the phone's clipboard for pasting |
+| `activate_siri` | Activate Siri |
+| `run_shortcut` | Run an iOS Shortcut by index |
+
+### Hardware
+
+| Tool | Description |
+|------|-------------|
+| `lock` | Lock the screen |
+| `unlock` | Unlock the screen |
+| `volume_up` | Increase volume |
+| `volume_down` | Decrease volume |
+
+## Skills
+
+Skills are Markdown files that teach AI agents how to navigate specific iOS apps -- where buttons are, how to handle common flows, and strategies for accomplishing tasks.
+
+The official plugin repos bundle these skills automatically. If you're using a standalone MCP setup, grab them from the [skills repo](https://github.com/Jootsing-Research/skills).
+
+**Available skills:**
+
+| Skill | Category |
+|-------|----------|
+| **tapkit** | Core -- MCP tool usage fundamentals |
+| **tapkit-cli** | Core -- CLI-based interaction |
+| **clock** | iOS Clock app (alarms, timers, stopwatch) |
+| **weather** | iOS Weather app (forecasts, conditions) |
+| **facebook** | Feed, posts, Marketplace, Reels, groups |
+| **instagram** | Feed, stories, Reels, DMs, profiles |
+| **linkedin** | Professional feed, jobs, connections |
+| **telegram** | Chats, groups, channels, bots |
+| **tiktok** | For You feed, videos, creators |
+| **twitter** | Feed, posts, threads, search |
+| **hinge** | Profiles, likes, roses, matches |
+| **uber-eats** | Restaurants, menus, ordering |
+
+## How It Works
+
+- **Coordinate scaling** -- Screenshots are resized to a max 1344px long edge (JPEG @ 80%) for efficient transmission. Tap coordinates are automatically translated back to native screen space.
+- **Auto phone selection** -- If you have one phone, it's auto-selected. Multiple phones require explicit `select_phone` or passing `phone_id`.
+- **Serverless-friendly** -- Deployed on Vercel with session recovery on cold starts. OAuth 2.0 with PKCE for secure authentication.
+
+## Development
+
+```bash
+npm install          # Install dependencies
+npm run dev          # Start with hot reload (tsx watch)
+npm run build        # Compile TypeScript
+npm run typecheck    # Type check without emitting
+```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TAPKIT_API_KEY` | Yes (local) | Your TapKit API key (`tk_...`) |
+| `TAPKIT_API_URL` | No | API base URL (default: `https://api.tapkit.ai/v1`) |
+| `SUPABASE_URL` | Yes (OAuth) | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Yes (OAuth) | Supabase anonymous key |
+| `OAUTH_SIGNING_SECRET` | Yes (OAuth) | Random secret for signing auth codes |
+| `MCP_SERVER_URL` | Yes (OAuth) | Public URL for OAuth redirects |
+
+## License
+
+MIT
