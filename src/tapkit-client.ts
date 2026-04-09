@@ -352,12 +352,8 @@ export class TapKitClient {
   /**
    * Open Spotlight search
    */
-  async spotlight(phoneId: string, query?: string): Promise<TapResult> {
-    const result = await this.request<TapResult>('POST', `/phones/${phoneId}/spotlight`, {});
-    if (query) {
-      await this.typeText(phoneId, query);
-    }
-    return result;
+  async spotlight(phoneId: string): Promise<TapResult> {
+    return this.request<TapResult>('POST', `/phones/${phoneId}/spotlight`, {});
   }
 
   /**

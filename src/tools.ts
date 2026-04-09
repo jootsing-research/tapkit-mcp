@@ -268,17 +268,13 @@ export const toolDefinitions = [
   },
   {
     name: 'spotlight',
-    description: 'Open Spotlight search. Optionally provide a query to search for.',
+    description: 'Open Spotlight.',
     inputSchema: {
       type: 'object',
       properties: {
         phone_id: {
           type: 'string',
           description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        },
-        query: {
-          type: 'string',
-          description: 'Search query (optional)'
         }
       },
       required: ['phone_id']
@@ -620,10 +616,10 @@ async function executeToolInner(
     }
 
     case 'spotlight': {
-      const { phone_id, query } = args as { phone_id: string; query?: string };
-      await client.spotlight(phone_id, query);
+      const phoneId = args.phone_id as string;
+      await client.spotlight(phoneId);
       return {
-        content: [{ type: 'text', text: query ? `Opened Spotlight and searched for: ${query}` : 'Opened Spotlight' }]
+        content: [{ type: 'text', text: 'Opened Spotlight' }]
       };
     }
 
