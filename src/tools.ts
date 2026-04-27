@@ -3,7 +3,7 @@
  */
 
 import sharp from 'sharp';
-import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus } from './tapkit-client.js';
+import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus, type PinchAction } from './tapkit-client.js';
 
 // Tool input schemas (JSON Schema format)
 export const toolDefinitions = [
@@ -160,6 +160,37 @@ export const toolDefinitions = [
         hold_duration_ms: { type: 'number', description: 'How long to hold before dragging in ms (default: 500)' }
       },
       required: ['phone_id', 'from_x', 'from_y', 'to_x', 'to_y']
+    }
+  },
+  {
+    name: 'pinch',
+    description: 'Perform a pinch or rotate gesture centered at specific coordinates. Useful for zooming or rotating content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+        },
+        x: {
+          type: 'number',
+          description: 'Center X coordinate'
+        },
+        y: {
+          type: 'number',
+          description: 'Center Y coordinate'
+        },
+        action: {
+          type: 'string',
+          enum: ['pinch_in', 'pinch_out', 'rotate_cw', 'rotate_ccw'],
+          description: 'Gesture to perform'
+        },
+        duration_ms: {
+          type: 'number',
+          description: 'Duration of the gesture in milliseconds (default: 1000)'
+        }
+      },
+      required: ['phone_id', 'x', 'y', 'action']
     }
   },
   {
@@ -377,6 +408,20 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'get_clipboard_text_from_phone',
+    description: 'Read the current text from a phone\'s clipboard.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+        }
+      },
+      required: ['phone_id']
+    }
+  },
+  {
     name: 'get_phone_status',
     description: 'Get real-time status of a phone including connection state, Switch Control, screen lock, and streaming status.',
     inputSchema: {
@@ -563,6 +608,19 @@ async function executeToolInner(
       };
     }
 
+    case 'pinch': {
+      const { phone_id, x, y, action, duration_ms } = args as {
+        phone_id: string; x: number; y: number; action: PinchAction; duration_ms?: number;
+      };
+      await client.ensureScaling(phone_id);
+      const native = client.toNative(phone_id, x, y);
+      const result = await client.pinch(phone_id, native.x, native.y, action, duration_ms);
+      const id = result.id ? `, job: ${result.id}` : '';
+      return {
+        content: [{ type: 'text', text: `Performed ${action} at (${x}, ${y}) for ${duration_ms || 1000}ms (status: ${result.status}${id})` }]
+      };
+    }
+
     case 'double_tap': {
       const { phone_id, x, y } = args as { phone_id: string; x: number; y: number };
       await client.ensureScaling(phone_id);
@@ -660,6 +718,14 @@ async function executeToolInner(
       await client.copyText(phone_id, text);
       return {
         content: [{ type: 'text', text: `Copied text to phone clipboard` }]
+      };
+    }
+
+    case 'get_clipboard_text_from_phone': {
+      const phoneId = args.phone_id as string;
+      const result = await client.readClipboardText(phoneId);
+      return {
+        content: [{ type: 'text', text: result.empty ? 'Phone clipboard is empty' : `Phone clipboard text:\n${result.text}` }]
       };
     }
 

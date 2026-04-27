@@ -25,7 +25,7 @@ function createMCPServer(authToken: string): Server {
   const server = new Server(
     {
       name: 'tapkit',
-      version: '1.0.0',
+      version: '1.1.0',
     },
     {
       capabilities: {

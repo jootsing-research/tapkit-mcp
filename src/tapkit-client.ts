@@ -51,6 +51,22 @@ export interface TapResult {
   job_id?: string;
 }
 
+export interface ClipboardTextResult {
+  text: string;
+  empty: boolean;
+  job_id?: string;
+}
+
+export type PinchAction = 'pinch_in' | 'pinch_out' | 'rotate_cw' | 'rotate_ccw';
+
+export interface PinchResult {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result: Record<string, unknown> | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 export interface TapKitError {
   error: string;
   message: string;
@@ -297,6 +313,18 @@ export class TapKitClient {
   }
 
   /**
+   * Pinch or rotate at coordinates
+   */
+  async pinch(phoneId: string, x: number, y: number, action: PinchAction, durationMs?: number): Promise<PinchResult> {
+    return this.request<PinchResult>('POST', `/phones/${phoneId}/pinch`, {
+      x,
+      y,
+      action,
+      ...(durationMs ? { duration_ms: durationMs } : {})
+    });
+  }
+
+  /**
    * Type text into active field
    */
   async typeText(phoneId: string, text: string): Promise<TapResult> {
@@ -382,6 +410,13 @@ export class TapKitClient {
    */
   async copyText(phoneId: string, text: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/copy-text`, { text });
+  }
+
+  /**
+   * Read text from the phone's clipboard
+   */
+  async readClipboardText(phoneId: string): Promise<ClipboardTextResult> {
+    return this.request<ClipboardTextResult>('POST', `/phones/${phoneId}/read-clipboard`);
   }
 
   /**

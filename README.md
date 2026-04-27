@@ -72,6 +72,7 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 | `swipe` | Fast flick gesture in a direction (up/down/left/right) |
 | `drag` | Drag from one point to another -- for sliders, precise scrolling |
 | `hold_and_drag` | Long press then drag -- for reordering lists, drag-and-drop |
+| `pinch` | Pinch in/out or rotate at (x, y) |
 
 ### Navigation & Input
 
@@ -82,6 +83,7 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 | `spotlight` | Open Spotlight search, optionally with a query |
 | `escape` | Dismiss keyboards, alerts, popups, or modal screens |
 | `copy_text_to_phone` | Load text into the phone's clipboard for pasting |
+| `get_clipboard_text_from_phone` | Read text from the phone's clipboard |
 | `activate_siri` | Activate Siri |
 | `run_shortcut` | Run an iOS Shortcut by index |
 
