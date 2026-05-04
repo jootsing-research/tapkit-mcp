@@ -3,7 +3,7 @@
  */
 
 import sharp from 'sharp';
-import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus, type PinchAction } from './tapkit-client.js';
+import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus, type PinchAction, type ConsumeMode } from './tapkit-client.js';
 
 // Tool input schemas (JSON Schema format)
 export const toolDefinitions = [
@@ -376,6 +376,29 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'open_url',
+    description: 'Open a URL on the phone via the Shortcut action queue. Default consume_mode is pop; use ack when the Shortcut must explicitly acknowledge completion.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+        },
+        url: {
+          type: 'string',
+          description: 'The absolute URL to open, for example "https://example.com/setup".'
+        },
+        consume_mode: {
+          type: 'string',
+          enum: ['pop', 'ack'],
+          description: 'How the Shortcut consumes the queued action. Defaults to pop.'
+        }
+      },
+      required: ['phone_id', 'url']
+    }
+  },
+  {
     name: 'enable_switch_control',
     description: 'Enable Switch Control on the Mac for a given phone. This must be done before the phone can be controlled via Switch Control.',
     inputSchema: {
@@ -734,6 +757,14 @@ async function executeToolInner(
       await client.openApp(phone_id, app_name);
       return {
         content: [{ type: 'text', text: `Opened app: ${app_name}` }]
+      };
+    }
+
+    case 'open_url': {
+      const { phone_id, url, consume_mode } = args as { phone_id: string; url: string; consume_mode?: ConsumeMode };
+      const result = await client.openUrl(phone_id, url, consume_mode);
+      return {
+        content: [{ type: 'text', text: `Queued URL open action: ${url} (action_id: ${result.action_id})` }]
       };
     }
 

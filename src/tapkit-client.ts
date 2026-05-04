@@ -57,6 +57,12 @@ export interface ClipboardTextResult {
   job_id?: string;
 }
 
+export type ConsumeMode = 'pop' | 'ack';
+
+export interface OpenUrlResult {
+  action_id: string;
+}
+
 export type PinchAction = 'pinch_in' | 'pinch_out' | 'rotate_cw' | 'rotate_ccw';
 
 export interface PinchResult {
@@ -344,6 +350,16 @@ export class TapKitClient {
   async openApp(phoneId: string, appName: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/open-app`, {
       app_name: appName
+    });
+  }
+
+  /**
+   * Open a URL on the phone via Shortcut action queue
+   */
+  async openUrl(phoneId: string, url: string, consumeMode: ConsumeMode = 'pop'): Promise<OpenUrlResult> {
+    return this.request<OpenUrlResult>('POST', `/phones/${phoneId}/open-url`, {
+      url,
+      consume_mode: consumeMode
     });
   }
 

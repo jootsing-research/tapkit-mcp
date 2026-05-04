@@ -80,6 +80,7 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 |------|-------------|
 | `press_home` | Press the home button |
 | `open_app` | Open an app by name or bundle ID |
+| `open_url` | Open a URL via the Shortcut action queue |
 | `spotlight` | Open Spotlight search, optionally with a query |
 | `escape` | Dismiss keyboards, alerts, popups, or modal screens |
 | `copy_text_to_phone` | Load text into the phone's clipboard for pasting |
